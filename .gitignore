@@ -1,0 +1,13 @@
+a.out*
+*.o
+graphs/twitter
+*.swp
+run
+run_basic
+run_profile
+test
+*.dump
+perf.data
+perf.data.old
+default.prof*
+test_out/*
