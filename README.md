@@ -46,4 +46,4 @@ The algorithms are breadth first search, PageRank, Betweenness Centrality and Co
 To add new algorithms define them in the algorithm's folder, then include them in test.cpp and call them in `real_graph`.
 
 ## Graph Format
-The graphs can either be in the Adjencency graph format as described [here](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the Matrix Market forat as described [here] (https://networkrepository.com/mtx-matrix-market-format.html)
+The graphs can either be in the Adjencency graph format as described [here](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the Matrix Market forat as described [here](https://networkrepository.com/mtx-matrix-market-format.html)
