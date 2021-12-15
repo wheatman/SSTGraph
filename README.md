@@ -1,5 +1,11 @@
 # SSTGraph
 
+SSTGraph is a shared-memory parallel framework for the storage and analysis of dynamic graphs originally described in [Wheatman and Burns., 2021](link). SSTGraph builds on top of the tinyset parallel, dynamic set data structure. Tinyset implements set membership in a shallow hierarchy of sorted packed memory
+arrays to achieve logarithmic time access and updates, and it scans in optimal linear time. Tinyset uses space comparable to that of systems that use data compression while avoiding compression’s computation and serialization overhead.
+
+SSTGraph supports graphs in either th [Adjancency graph format](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the [Matrix Market format](https://networkrepository.com/mtx-matrix-market-format.html). Graph algorithms are written in the EdgeMap/VertexMap programming interface first described in [Ligra](link).
+
+
 ## Quick Start
 
 compile with `make`
@@ -46,4 +52,4 @@ The algorithms are breadth first search, PageRank, Betweenness Centrality and Co
 To add new algorithms define them in the algorithm's folder, then include them in test.cpp and call them in `real_graph`.
 
 ## Graph Format
-The graphs can either be in the Adjencency graph format as described [here](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the Matrix Market forat as described [here](https://networkrepository.com/mtx-matrix-market-format.html)
+The graphs can either be in the Adjancency graph format as described [here](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the Matrix Market format as described [here](https://networkrepository.com/mtx-matrix-market-format.html)
