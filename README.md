@@ -1,6 +1,6 @@
 # SSTGraph
 
-SSTGraph is a shared-memory parallel framework for the storage and analysis of dynamic graphs originally described in [Wheatman and Burns., 2021](link). SSTGraph builds on top of the tinyset parallel, dynamic set data structure. Tinyset implements set membership in a shallow hierarchy of sorted packed memory
+SSTGraph is a shared-memory parallel framework for the storage and analysis of dynamic graphs originally described in [Wheatman and Burns., 2021](https://ieeexplore.ieee.org/abstract/document/9671836). SSTGraph builds on top of the tinyset parallel, dynamic set data structure. Tinyset implements set membership in a shallow hierarchy of sorted packed memory
 arrays to achieve logarithmic time access and updates, and it scans in optimal linear time. Tinyset uses space comparable to that of systems that use data compression while avoiding compression’s computation and serialization overhead.
 
 SSTGraph supports graphs in either th [Adjancency graph format](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the [Matrix Market format](https://networkrepository.com/mtx-matrix-market-format.html). Graph algorithms are written in the EdgeMap/VertexMap programming interface first described in [Ligra](link). This repository includes implementations of standard algorithms, such as PageRank, connected components, breadth first search, betweenness centrality, and triangle counting.
