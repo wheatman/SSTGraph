@@ -322,7 +322,7 @@ get_edges_from_file_mtx(const std::string &filename, uint64_t *edge_count,
   }
 
   if (W.m - 8 != m * elements_per_line) {
-    std::cout << "Bad input file: length = " << W.m - 8 << elements_per_line << "m = " << elements_per_line * m
+    std::cout << "Bad input file: length = " << W.m - 8 << ", " << "elements per line " <<  elements_per_line << ", " << "m = " << elements_per_line * m
               << std::endl;
     std::cout << W.Strings[0] << ", " << W.Strings[1] << ", " << W.Strings[2]
               << ", " << W.Strings[3] << ", " << W.Strings[4] << ", "
