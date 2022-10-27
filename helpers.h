@@ -316,8 +316,13 @@ get_edges_from_file_mtx(const std::string &filename, uint64_t *edge_count,
   int64_t c = strtol(W.Strings[6], nullptr, 10);
   //{parallel_for(uint64_t i=0; i < len; i++) In[i] = atol(W.Strings[i + 1]);}
 
-  if (W.m - 8 != m * 3) {
-    std::cout << "Bad input file: length = " << W.m - 8 << " 3m = " << 3 * m
+  uint32_t elements_per_line = 3;
+  if (pattern) {
+    elements_per_line = 2;
+  }
+
+  if (W.m - 8 != m * elements_per_line) {
+    std::cout << "Bad input file: length = " << W.m - 8 << ", " << "elements per line " <<  elements_per_line << ", " << "m = " << elements_per_line * m
               << std::endl;
     std::cout << W.Strings[0] << ", " << W.Strings[1] << ", " << W.Strings[2]
               << ", " << W.Strings[3] << ", " << W.Strings[4] << ", "
@@ -332,10 +337,7 @@ get_edges_from_file_mtx(const std::string &filename, uint64_t *edge_count,
     printf("out of memory, edges_array\n");
     exit(-1);
   }
-  uint32_t elements_per_line = 3;
-  if (pattern) {
-    elements_per_line = 2;
-  }
+
 
   parallel_for(int64_t i = 0; i < m / 2; i++) {
     el_t src = strtol(W.Strings[8 + i * elements_per_line], nullptr, 10);
