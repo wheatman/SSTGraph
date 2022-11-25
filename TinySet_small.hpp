@@ -947,21 +947,25 @@ TinySetV_small<value_type>::TinySetV_small(const TinySetV_small &source,
       for (uint32_t i = 0; i < new_pma_count; i++) {
         new (&pmas.p[i]) PMA<1, value_type>(source.pmas.p[i].pma1);
       }
+      break;
     }
     case 2: {
       for (uint32_t i = 0; i < new_pma_count; i++) {
         new (&pmas.p[i]) PMA<2, value_type>(source.pmas.p[i].pma2);
       }
+      break;
     }
     case 3: {
       for (uint32_t i = 0; i < new_pma_count; i++) {
         new (&pmas.p[i]) PMA<3, value_type>(source.pmas.p[i].pma3);
       }
+      break;
     }
     case 4: {
       for (uint32_t i = 0; i < new_pma_count; i++) {
         new (&pmas.p[i]) PMA<4, value_type>(source.pmas.p[i].pma4);
       }
+      break;
     }
     }
 
