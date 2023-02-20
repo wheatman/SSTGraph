@@ -1,7 +1,7 @@
 #include "PMA.hpp"
 #include "SparseMatrix.hpp"
 #include "TinySet.hpp"
-#include "TinySet_small.h"
+#include "TinySet_small.hpp"
 #include "cxxopts.hpp"
 #include "test.hpp"
 #include <algorithm>

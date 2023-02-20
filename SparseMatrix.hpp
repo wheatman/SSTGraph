@@ -1,6 +1,6 @@
 #pragma once
 #include "BitArray.hpp"
-#include "TinySet_small.h"
+#include "TinySet_small.hpp"
 #include "VertexSubset.hpp"
 #include "helpers.h"
 #include "integerSort/blockRadixSort.h"

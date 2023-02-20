@@ -2,7 +2,6 @@
 #include "PMA.hpp"
 #include "SparseMatrix.hpp"
 #include "TinySet.hpp"
-#include "TinySet_small.h"
 #include "TinySet_small.hpp"
 #include "algorithms/BC.h"
 #include "algorithms/BFS.h"
