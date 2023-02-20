@@ -781,7 +781,8 @@ void TinySetV_small<value_type>::change_index(uint32_t old_pma_count,
     free(pmas.p);
   } else {
 #if NO_INLINE_TINYSET == 1
-    delete pmas.d;
+    reinterpret_cast<PMA<old_b, value_type> *>(pmas.d)
+        ->~PMA<old_b, value_type>();
 #else
     reinterpret_cast<PMA<old_b, value_type> *>(&pmas.d[0])
         ->~PMA<old_b, value_type>();
@@ -924,7 +925,7 @@ value_type TinySetV_small<value_type>::value(el_t e,
 
 template <typename value_type> TinySetV_small<value_type>::TinySetV_small() {
 #if NO_INLINE_TINYSET == 1
-  pmas.d = (pma_types_ *)new PMA<4, value_type>(32);
+  pmas.d = (pma_types_ *)new PMA<4, value_type>();
 #else
   new (&pmas.d[0]) PMA<4, value_type>();
 #endif
@@ -992,7 +993,20 @@ template <typename value_type>
 void TinySetV_small<value_type>::destroy(const extra_data &d) {
   if (get_pma_count(d) == 1) {
 #if NO_INLINE_TINYSET == 1
-    delete pmas.d;
+    switch (pmas.get_b()) {
+    case 1:
+      pmas.d->pma1.~PMA<1, value_type>();
+      break;
+    case 2:
+      pmas.d->pma2.~PMA<2, value_type>();
+      break;
+    case 3:
+      pmas.d->pma3.~PMA<3, value_type>();
+      break;
+    case 4:
+      pmas.d->pma4.~PMA<4, value_type>();
+      break;
+    }
 #else
     switch (pmas.get_b()) {
     case 1:
