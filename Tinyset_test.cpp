@@ -1,9 +1,12 @@
-#include "TinySet.hpp"
-#include "cxxopts.hpp"
-#include "helpers.h"
-
 #include <random>
 #include <set>
+
+#include "cxxopts.hpp"
+
+#include "SSTGraph/TinySet.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+
+using namespace SSTGraph;
 
 [[nodiscard]] int TinySet_add_test(uint32_t max, uint32_t el_count,
                                    bool check = false) {

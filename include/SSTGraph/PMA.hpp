@@ -1,8 +1,5 @@
 
 #pragma once
-#include "SizedInt.hpp"
-#include "StructOfArrays/soa.hpp"
-#include "helpers.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -12,6 +9,12 @@
 #include <iostream>
 #include <tuple>
 #include <type_traits>
+
+#include "SSTGraph/internal/SizedInt.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+#include "StructOfArrays/soa.hpp"
+
+namespace SSTGraph {
 
 namespace PMA_helpers {
 constexpr std::array<std::array<double, 32>, 32>
@@ -1383,3 +1386,4 @@ PMA<key_type, Ts...>::~PMA<key_type, Ts...>() {
     free(array.p_data);
   }
 }
+} // namespace SSTGraph

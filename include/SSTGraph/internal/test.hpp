@@ -1,25 +1,10 @@
-#include "BitArray.hpp"
-#include "EdgeMapVertexMap/algorithms/BC.h"
-#include "EdgeMapVertexMap/algorithms/BFS.h"
-#include "EdgeMapVertexMap/algorithms/BellmanFord.h"
-#include "EdgeMapVertexMap/algorithms/Components.h"
-#include "EdgeMapVertexMap/algorithms/PageRank.h"
-#include "EdgeMapVertexMap/algorithms/TC.h"
-#include "EdgeMapVertexMap/algorithms/Touchall.h"
-#include "PMA.hpp"
-#include "ParallelTools/parallel.h"
-#include "SparseMatrix.hpp"
-#include "TinySet.hpp"
-#include "TinySet_small.hpp"
-#include "helpers.h"
-#include "rmat_util.h"
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -32,6 +17,26 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "EdgeMapVertexMap/algorithms/BC.h"
+#include "EdgeMapVertexMap/algorithms/BFS.h"
+#include "EdgeMapVertexMap/algorithms/BellmanFord.h"
+#include "EdgeMapVertexMap/algorithms/Components.h"
+#include "EdgeMapVertexMap/algorithms/PageRank.h"
+#include "EdgeMapVertexMap/algorithms/TC.h"
+#include "EdgeMapVertexMap/algorithms/Touchall.h"
+
+#include "ParallelTools/parallel.h"
+
+#include "SSTGraph/PMA.hpp"
+#include "SSTGraph/SparseMatrix.hpp"
+#include "SSTGraph/TinySet.hpp"
+#include "SSTGraph/TinySet_small.hpp"
+#include "SSTGraph/internal/BitArray.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+#include "SSTGraph/internal/rmat_util.h"
+
+namespace SSTGraph {
 
 int timing_inserts(uint64_t max_size) {
   printf("std::set, b, 32,");
@@ -951,3 +956,4 @@ bool real_graph_static_test(const std::string &filename,
 #endif
   return true;
 }
+} // namespace SSTGraph

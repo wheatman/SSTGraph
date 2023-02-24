@@ -9,6 +9,8 @@
 #include <string>
 #include <type_traits>
 
+namespace SSTGraph {
+
 template <size_t I> class __attribute__((__packed__)) sized_uint {
   static_assert(I <= 8);
   std::array<uint8_t, I> data = {0};
@@ -45,3 +47,4 @@ public:
     return std::string("sized_uint<") + std::to_string(I) + ">";
   }
 };
+} // namespace SSTGraph

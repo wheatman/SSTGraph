@@ -1,9 +1,5 @@
 #pragma once
-#include "BitArray.hpp"
-#include "ParallelTools/parallel.h"
-#include "ParallelTools/reducer.h"
-#include "TinySet_small.hpp"
-#include "helpers.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -15,6 +11,15 @@
 #include <vector>
 
 #include "parlay/primitives.h"
+
+#include "ParallelTools/parallel.h"
+#include "ParallelTools/reducer.h"
+
+#include "SSTGraph/TinySet_small.hpp"
+#include "SSTGraph/internal/BitArray.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+
+namespace SSTGraph {
 
 template <bool is_csr_ = true, typename... Ts> class SparseMatrixV {
 
@@ -643,3 +648,4 @@ SparseMatrixV<is_csr_, Ts...>::~SparseMatrixV<is_csr_, Ts...>() {
   }
   free(lines);
 }
+} // namespace SSTGraph

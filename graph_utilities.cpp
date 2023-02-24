@@ -1,6 +1,9 @@
-#include "SparseMatrix.hpp"
 #include "cxxopts.hpp"
-#include "rmat_util.h"
+
+#include "SSTGraph/SparseMatrix.hpp"
+#include "SSTGraph/internal/rmat_util.h"
+
+using namespace SSTGraph;
 
 void stats_graph(const std::string &filename) {
   uint32_t num_nodes = 0;

@@ -19,6 +19,8 @@
 #include <type_traits>
 #include <vector>
 
+namespace SSTGraph {
+
 template <typename T> T *newA(size_t n) { return (T *)malloc(n * sizeof(T)); }
 
 using el_t = uint32_t;
@@ -223,15 +225,6 @@ static constexpr uint32_t bsr_word_constexpr(uint32_t word) {
   } else {
     return bsr_word_constexpr(word << 1U) - 1;
   }
-}
-
-template <class T> inline bool writeMin(T *a, T b) {
-  T c;
-  bool r = false;
-  do {
-    c = *a;
-  } while (c > b && !(r = __sync_bool_compare_and_swap(a, c, b)));
-  return r;
 }
 
 int isPowerOfTwo(uint32_t x) { return ((x != 0U) && !(x & (x - 1U))); }
@@ -661,22 +654,6 @@ get_edges_from_file(const std::string &filename, uint64_t *edge_count,
   return nullptr;
 }
 
-template <class ET> inline bool CAS(ET *ptr, ET oldv, ET newv) {
-  if constexpr (sizeof(ET) == 1) {
-    return __sync_bool_compare_and_swap((bool *)ptr, *((bool *)&oldv),
-                                        *((bool *)&newv));
-  } else if constexpr (sizeof(ET) == 4) {
-    return __sync_bool_compare_and_swap((int *)ptr, *((int *)&oldv),
-                                        *((int *)&newv));
-  } else if constexpr (sizeof(ET) == 8) {
-    return __sync_bool_compare_and_swap((long *)ptr, *((long *)&oldv),
-                                        *((long *)&newv));
-  } else {
-    std::cout << "CAS bad length : " << sizeof(ET) << std::endl;
-    abort();
-  }
-}
-
 bool approximatelyEqual(double a, double b,
                         double epsilon = std::numeric_limits<float>::epsilon() *
                                          100) {
@@ -814,3 +791,5 @@ void releaseVectorWrapper(std::vector<T, std::allocator<T>> &targetVector) {
   vectorPtr->_M_start = vectorPtr->_M_finish = vectorPtr->_M_end_of_storage =
       nullptr;
 }
+
+} // namespace SSTGraph

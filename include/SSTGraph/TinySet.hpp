@@ -1,5 +1,8 @@
 #pragma once
+
 #include "TinySet_small.hpp"
+
+namespace SSTGraph {
 
 template <typename... Ts> class TinySetV {
 
@@ -48,3 +51,4 @@ public:
   }
   [[nodiscard]] uint8_t get_b() const { return ts.get_b(); }
 };
+} // namespace SSTGraph

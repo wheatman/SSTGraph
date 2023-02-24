@@ -1,13 +1,16 @@
-#include "PMA.hpp"
-#include "cxxopts.hpp"
-#include "helpers.h"
-
 #include <concepts>
 #include <limits>
 #include <map>
 #include <random>
 #include <set>
 #include <unordered_set>
+
+#include "cxxopts.hpp"
+
+#include "SSTGraph/PMA.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+
+using namespace SSTGraph;
 
 template <uint32_t b>
 [[nodiscard]] int pma_update_test_templated(uint32_t el_count,

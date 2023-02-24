@@ -17,6 +17,7 @@
 -Icxxopts/include/
 -Iparlaylib/include/
 -IEdgeMapVertexMap/include/
+-Iinclude/
 -DCILK=0
 -DPARALLEL=0
 -DPARLAY=0

@@ -1,9 +1,9 @@
-#include "SparseMatrix.hpp"
 #include "cxxopts.hpp"
-#include "helpers.h"
 
-#include <eigen/Eigen/Dense>
-#include <eigen/Eigen/Sparse>
+#include "SSTGraph/SparseMatrix.hpp"
+#include "SSTGraph/internal/helpers.hpp"
+
+using namespace SSTGraph;
 
 template <typename value_type>
 [[nodiscard]] int matrix_values_add_remove_test_templated(uint32_t el_count,

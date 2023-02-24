@@ -7,7 +7,7 @@ TINYSET_32?=0
 NO_INLINE_TINYSET?=0
 PARLAY?=0
 
-CFLAGS := -Wall -Wno-address-of-packed-member -Wextra -O$(OPT) -g -gdwarf-4 -std=c++20 -IParallelTools/ -IStructOfArrays/include/ -Iparlaylib/include/ -Icxxopts/include/ -IEdgeMapVertexMap/include/ -ferror-limit=1 -ftemplate-backtrace-limit=0  -I
+CFLAGS := -Wall -Wno-address-of-packed-member -Wextra -O$(OPT) -g -gdwarf-4 -std=c++20 -IParallelTools/ -IStructOfArrays/include/ -Iparlaylib/include/ -Icxxopts/include/ -IEdgeMapVertexMap/include/ -Iinclude/ -ferror-limit=1 -ftemplate-backtrace-limit=0  -I
 
 LDFLAGS := -lrt -lm -lm -ldl -lpthread
 
@@ -59,7 +59,7 @@ DEFINES := -DOPENMP=$(OPENMP) -DCILK=$(CILK) -DTINYSET_32=$(TINYSET_32) -DNO_INL
 
 SRC := run.cpp
 
-INCLUDES := TinySet_small.h helpers.h rmat_util.h BitArray.hpp  PMA.hpp SparseMatrix.hpp TinySet.hpp TinySet_small.hpp test.hpp  
+INCLUDES := include/SSTGraph/internal/helpers.hpp include/SSTGraph/internal/rmat_util.h include/SSTGraph/internal/BitArray.hpp  include/SSTGraph/PMA.hpp include/SSTGraph/SparseMatrix.hpp include/SSTGraph/TinySet.hpp include/SSTGraph/TinySet_small.hpp include/SSTGraph/internal/test.hpp  
 
 .PHONY: all clean tidy
 
@@ -72,7 +72,7 @@ basic: $(SRC) $(INCLUDES)
 	cp basic run
 	objdump -S --disassemble basic > run_basic.dump &
 
-pma_test: PMA_test.cpp PMA.hpp helpers.h SizedInt.hpp
+pma_test: PMA_test.cpp include/SSTGraph/PMA.hpp include/SSTGraph/internal/helpers.hpp include/SSTGraph/internal/SizedInt.hpp
 	$(CXX) $(CFLAGS) $(DEFINES) PMA_test.cpp $(LDFLAGS) -o pma_test
 	@mkdir -p test_out
 	@./pma_test --sizes > test_out/pma_sizes
@@ -84,7 +84,7 @@ pma_test: PMA_test.cpp PMA.hpp helpers.h SizedInt.hpp
 	@sleep 1
 	@echo "PMA Tests Finished"
 
-tinyset_test: Tinyset_test.cpp TinySet.hpp TinySet_small.h TinySet_small.hpp helpers.h PMA.hpp
+tinyset_test: Tinyset_test.cpp include/SSTGraph/TinySet.hpp include/SSTGraph/TinySet_small.hpp include/SSTGraph/internal/helpers.hpp include/SSTGraph/PMA.hpp
 	$(CXX) $(CFLAGS) $(DEFINES) Tinyset_test.cpp $(LDFLAGS) -o tinyset_test
 	@mkdir -p test_out
 	@./tinyset_test --sizes > test_out/tinyset_sizes
@@ -98,17 +98,17 @@ tinyset_test: Tinyset_test.cpp TinySet.hpp TinySet_small.h TinySet_small.hpp hel
 	@sleep 1
 	@echo "TinySet Tests Finished"
 
-sparsematrix_test: SparseMatrix_test.cpp PMA.hpp helpers.h TinySet.hpp TinySet_small.h TinySet_small.hpp SparseMatrix.hpp
+sparsematrix_test: SparseMatrix_test.cpp include/SSTGraph/PMA.hpp include/SSTGraph/internal/helpers.hpp include/SSTGraph/TinySet.hpp include/SSTGraph/TinySet_small.hpp include/SSTGraph/SparseMatrix.hpp
 	$(CXX) $(CFLAGS) $(DEFINES) SparseMatrix_test.cpp $(LDFLAGS) -o sparsematrix_test
 	@./sparsematrix_test --matrix_values_add_remove_test --el_count 100000 --rows 10000000 --verify  >test_out/matrix_values_add_remove_test || (echo "./sparsematrix_test --matrix_values_add_remove_test --el_count 100000 --rows 10000000 --verify verification failed $$?"; exit 1)&
 	@wait
 	@sleep 1
 	@echo "SparseMatrix Tests Finished"
 
-graph_utils: graph_utilities.cpp PMA.hpp helpers.h TinySet.hpp TinySet_small.h TinySet_small.hpp SparseMatrix.hpp
+graph_utils: graph_utilities.cpp include/SSTGraph/PMA.hpp include/SSTGraph/internal/helpers.hpp include/SSTGraph/TinySet.hpp include/SSTGraph/TinySet_small.hpp include/SSTGraph/SparseMatrix.hpp
 	$(CXX) $(CFLAGS) $(DEFINES) graph_utilities.cpp $(LDFLAGS) -o graph_utils
 
-test_graph:
+test_graph: $(SRC) $(INCLUDES)
 	$(CXX) $(CFLAGS) $(DEFINES) $(SRC) $(LDFLAGS) -o test_graph
 	@mkdir -p test_out
 	@./test_graph --real ~/graphs/soc-LiveJournal1_sym.adj --iters=1 --bfs_src=0 >test_out/real_graph_out 2>&1 || (echo "./test_graph --real ~/graphs/soc-LiveJournal1_sym.adj --iters=1 --bfs_src=0 verification failed $$?"; exit 1)
@@ -143,14 +143,6 @@ profile: build_profile
 	@$(ONE_WORKER) ./build_profile --tinyset_map_add_test --el_count 100000    >/dev/null  &
 	@$(ONE_WORKER) ./build_profile --tinyset_map_remove_test --el_count 100000    >/dev/null  &
 	@$(ONE_WORKER) ./build_profile --matrix_values_add_remove_test --el_count 100000 --rows 10000000    >/dev/null  &
-	@$(ONE_WORKER) ./build_profile --union_test --el_count 1000000   >/dev/null &
-	@$(ONE_WORKER) ./build_profile --intersection_test --el_count 1000000   >/dev/null &
-	@$(ONE_WORKER) ./build_profile --timing_union_test --el_count 1000000   >/dev/null &
-	@$(ONE_WORKER) ./build_profile --spmv_values --el_count 100000 --rows 10000  --iters 1  >/dev/null &
-	@$(ONE_WORKER) ./build_profile  --spmv_eigen --el_count 1 --rows 10000 --iters 100 >/dev/null 2>&1 &
-	@$(ONE_WORKER) ./build_profile  --spmv_eigen --el_count 10 --rows 10000 --iters 100 >/dev/null 2>&1 & 
-	@$(ONE_WORKER) ./build_profile  --spmv_eigen --el_count 100 --rows 10000 --iters 100 >/dev/null 2>&1 &
-	@$(ONE_WORKER) ./build_profile  --spmv_eigen --el_count 1000 --rows 10000 --iters 100 >/dev/null 2>&1 &
 	@$(ONE_WORKER) ./build_profile --real ~/graphs/soc-LiveJournal1_sym.adj --iters=1 --bfs_src=0  >/dev/null 2>&1
 	llvm-profdata-10 merge -output=default.profdata code-*.profraw
 	rm -f bfs.out bc.out pr.out cc.out bf.out

@@ -1,15 +1,18 @@
-#include "PMA.hpp"
-#include "SparseMatrix.hpp"
-#include "TinySet.hpp"
-#include "TinySet_small.hpp"
-#include "cxxopts.hpp"
-#include "test.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "SSTGraph/PMA.hpp"
+#include "SSTGraph/SparseMatrix.hpp"
+#include "SSTGraph/TinySet.hpp"
+#include "SSTGraph/TinySet_small.hpp"
+#include "SSTGraph/internal/test.hpp"
+#include "cxxopts.hpp"
+
+using namespace SSTGraph;
 
 int main(int argc, char *argv[]) {
 
