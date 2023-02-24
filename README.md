@@ -24,13 +24,14 @@ To build with cilk compile with
 make CILK=1
 ```
 
-OpenMP is also minimially supported for testing purposes, but suffers from worse performance and less parallelism.
+[Parlaylib](https://cmuparlay.github.io/parlaylib/) is also supported with
+```
+make PARLAY=1
+```
+
 
 Any performance evaluation down against this code should use the cilk version and the clang compiler.
 
-```
-make OPENMP=1
-```
 
 ## Compiler Support
 
@@ -48,8 +49,6 @@ This will print out some statistics about the graph and then run a few different
 
 The algorithms are breadth first search, PageRank, Betweenness Centrality and Connected Components.
 
-
-To add new algorithms define them in the algorithm's folder, then include them in test.cpp and call them in `real_graph`.
 
 ## Graph Format
 The graphs can either be in the Adjancency graph format as described [here](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html) or the Matrix Market format as described [here](https://networkrepository.com/mtx-matrix-market-format.html)

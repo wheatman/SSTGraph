@@ -1,23 +1,25 @@
 #include "BitArray.hpp"
+#include "EdgeMapVertexMap/algorithms/BC.h"
+#include "EdgeMapVertexMap/algorithms/BFS.h"
+#include "EdgeMapVertexMap/algorithms/BellmanFord.h"
+#include "EdgeMapVertexMap/algorithms/Components.h"
+#include "EdgeMapVertexMap/algorithms/PageRank.h"
+#include "EdgeMapVertexMap/algorithms/TC.h"
+#include "EdgeMapVertexMap/algorithms/Touchall.h"
 #include "PMA.hpp"
+#include "ParallelTools/parallel.h"
 #include "SparseMatrix.hpp"
 #include "TinySet.hpp"
 #include "TinySet_small.hpp"
-#include "algorithms/BC.h"
-#include "algorithms/BFS.h"
-#include "algorithms/BellmanFord.h"
-#include "algorithms/Components.h"
-#include "algorithms/PageRank.h"
-#include "algorithms/TC.h"
-#include "algorithms/Touchall.h"
 #include "helpers.h"
-#include "parallel.h"
 #include "rmat_util.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -30,17 +32,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-constexpr int batch_size = 1000;
-
-std::mt19937 rng;
-void srand(uint32_t seed) { rng.seed(seed); }
-int random_int() { return rng(); }
-
-uint32_t rand_in_range(uint32_t max) { return random_int() % max; }
-double random_float(uint32_t max) {
-  return static_cast<double>(random_int() % max);
-}
 
 int timing_inserts(uint64_t max_size) {
   printf("std::set, b, 32,");
@@ -185,7 +176,7 @@ int timing_inserts(uint64_t max_size) {
     }
     printf("PMA, b, %u, ", b);
     start = get_usecs();
-    PMA<4> pma;
+    PMA<sized_uint<4>> pma;
     end = get_usecs();
     printf("creation, %lu, ", end - start);
     start = get_usecs();
@@ -212,7 +203,8 @@ int timing_inserts(uint64_t max_size) {
   end = get_usecs();
   printf("insertion, %lu,", end - start);
   start = get_usecs();
-  sum = ts.sum_keys();
+  sum = 0;
+  ts.map<true>([&sum](el_t key) { sum += key; });
   end = get_usecs();
   printf("sum_time, %lu, sum_total, %u\n", end - start, sum);
   // for (uint8_t b = 8; b <= 32; b += 8) {
@@ -245,9 +237,10 @@ int timing_random_inserts(uint64_t max_size, uint64_t num_inserts) {
   std::set<uint32_t> s32;
   uint64_t end = get_usecs();
   printf("creation, %lu, ", end - start);
+  auto random_numbers = create_random_data<uint32_t>(num_inserts, max_size);
   start = get_usecs();
   for (uint32_t i = 0; i < num_inserts; i++) {
-    s32.insert(rand_in_range(max_size));
+    s32.insert(random_numbers[i]);
   }
   end = get_usecs();
   printf("insertion, %lu,", end - start);
@@ -267,7 +260,7 @@ int timing_random_inserts(uint64_t max_size, uint64_t num_inserts) {
   printf("creation, %lu, ", end - start);
   start = get_usecs();
   for (uint32_t i = 0; i < num_inserts; i++) {
-    us32.insert(rand_in_range(max_size));
+    us32.insert(random_numbers[i]);
   }
   end = get_usecs();
   printf("insertion, %lu,", end - start);
@@ -287,12 +280,13 @@ int timing_random_inserts(uint64_t max_size, uint64_t num_inserts) {
   printf("creation, %lu, ", end - start);
   start = get_usecs();
   for (uint32_t i = 0; i < num_inserts; i++) {
-    ts.insert(rand_in_range(max_size));
+    ts.insert(random_numbers[i]);
   }
   end = get_usecs();
   printf("insertion, %lu,", end - start);
   start = get_usecs();
-  sum = ts.sum_keys();
+  sum = 0;
+  ts.map<true>([&sum](el_t key) { sum += key; });
   end = get_usecs();
   printf("sum_time, %lu, sum_total, %u\n", end - start, sum);
   srand(0);
@@ -303,7 +297,7 @@ int timing_random_inserts(uint64_t max_size, uint64_t num_inserts) {
   printf("creation, %lu, ", end - start);
   start = get_usecs();
   for (uint32_t i = 0; i < num_inserts; i++) {
-    bitarray.set(rand_in_range(max_size));
+    bitarray.set(random_numbers[i]);
   }
   end = get_usecs();
   printf("insertion, %lu,", end - start);
@@ -339,291 +333,65 @@ void perf_test_tinyset(uint32_t N) {
   uint64_t duration = get_usecs() - start;
   printf("it took %lu seconds\n", duration / 1000000);
   start = get_usecs();
-  uint64_t sum = ts.sum_keys();
+  uint64_t sum = 0;
+  ts.map<true>([&sum](el_t key) { sum += key; });
   uint64_t duration2 = get_usecs() - start;
   printf("it took %lu ms to sum\n", duration2 / 1000);
   printf("%u, %lu, %lu, %lu\n", N, duration, ts.get_size(), sum);
 }
-
-template <int b> void PMA_add_test(uint32_t el_count, bool check = false) {
-  uint32_t max = 0;
-  if constexpr (b == 4) {
-    max = UINT32_MAX;
-  } else {
-    max = 1U << (b * 8);
-  }
-  PMA<b> pma;
-  el_count = std::min(max - 1, el_count);
-  std::vector<uint32_t> random_numbers;
-  for (uint32_t i = 0; i < el_count; i++) {
-    random_numbers.push_back(random_int() % max);
-  }
+void perf_test_set(uint32_t N) {
+  printf("testing set N = %u\n", N);
   uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    // printf("trying to insert %u\n", random_numbers[i]);
-    pma.insert(random_numbers[i]);
-    if (check) {
-      if (!pma.has(random_numbers[i])) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u\n",
-               random_numbers[i]);
-        pma.print_pma();
-        exit(-1);
-      }
+  std::set<uint32_t> ts;
+  for (uint32_t i = 0; i < N; i++) {
+    ts.insert(i);
+  }
+  for (uint32_t i = 0; i < N; i++) {
+    if (!ts.count(i)) {
+      printf("don't have element %u, stopping\n", i);
+      return;
     }
   }
-  for (uint32_t i = 0; i < el_count; i++) {
-    if (check) {
-      if (!pma.has(random_numbers[i])) {
-        printf("FAILED: don't have something we inserted after inserting "
-               "elements, "
-               "index was %u\n",
-               i);
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
+  uint64_t duration = get_usecs() - start;
+  printf("it took %lu seconds\n", duration / 1000000);
   start = get_usecs();
-  uint64_t sum = pma.sum_keys();
-  uint64_t sum_duration = get_usecs() - start;
-  printf("max, %.9u, b , %.2u, el_count , %.9u, average_insert_time, %.10f, "
-         "sum_time, %.6f\n",
-         max, b, el_count, ((double)insert_duration) / (1000000 * el_count),
-         ((float)sum_duration) / 1000000);
-  if (check) {
-    std::set<uint32_t> checker(random_numbers.begin(), random_numbers.end());
-    uint64_t sum_check = 0;
-    for (auto s : checker) {
-      sum_check += s;
-    }
-    if (sum_check != sum) {
-      printf("FAILED: got bad result in pma sum in PMA_add_test, got %lu, "
-             "expect %lu\n",
-             sum, sum_check);
-      exit(-1);
-    }
+  uint64_t sum = 0;
+  for (uint32_t i : ts) {
+    sum += i;
   }
+  uint64_t duration2 = get_usecs() - start;
+  printf("it took %lu ms to sum\n", duration2 / 1000);
+  printf("%u, %lu, %lu, %lu\n", N, duration, ts.size(), sum);
 }
-
-template <int b> void PMA_remove_test(uint32_t el_count, bool check = false) {
-  uint32_t max = 0;
-  if constexpr (b == 4) {
-    max = UINT32_MAX;
-  } else {
-    max = 1U << (b * 8);
-  }
-  PMA<b> pma;
-  el_count = std::min(max - 1, el_count);
-  std::unordered_set<uint32_t> random_numbers_s;
-  while (random_numbers_s.size() < el_count) {
-    random_numbers_s.insert(random_int() % max);
-  }
-  std::vector<uint32_t> random_numbers;
-  random_numbers.reserve(el_count);
-  for (auto el : random_numbers_s) {
-    random_numbers.push_back(el);
-  }
+void perf_test_unordered_set(uint32_t N) {
+  printf("testing unordered_set N = %u\n", N);
   uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    pma.insert(random_numbers[i]);
-    // pma.print_pma();
-    if (check) {
-      if (!pma.has(random_numbers[i])) {
-        printf("don't have something we inserted while inserting elements\n");
-        exit(-1);
-      }
+  std::unordered_set<uint32_t> ts;
+  for (uint32_t i = 0; i < N; i++) {
+    ts.insert(i);
+  }
+  for (uint32_t i = 0; i < N; i++) {
+    if (!ts.count(i)) {
+      printf("don't have element %u, stopping\n", i);
+      return;
     }
   }
-  for (uint32_t i = 0; i < el_count; i++) {
-    if (check) {
-      if (!pma.has(random_numbers[i])) {
-        printf("don't have something we inserted after inserting elements, "
-               "index was %u\n",
-               i);
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
+  uint64_t duration = get_usecs() - start;
+  printf("it took %lu seconds\n", duration / 1000000);
   start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    pma.remove(random_numbers[i]);
-    // pma.print_pma();
-    if (check) {
-      if (pma.has(random_numbers[i])) {
-        printf("have something we removed while removing elements, tried to "
-               "remove %u\n",
-               random_numbers[i]);
-        exit(-1);
-      }
-      for (uint32_t j = i + 1; j < el_count; j++) {
-        if (!pma.has(random_numbers[j])) {
-          printf("we removed %u when we shouldn't have\n", random_numbers[j]);
-          exit(-1);
-        }
-      }
-    }
+  uint64_t sum = 0;
+  for (uint32_t i : ts) {
+    sum += i;
   }
-  if (check && pma.get_n() != 0) {
-    printf("still have elements when we shouldn't\n");
-    exit(-1);
-  }
-  uint64_t remove_duration = get_usecs() - start;
-  printf("insert duration = %lu, remove duration = %lu\n", insert_duration,
-         remove_duration);
-}
-
-bool TinySet_add_test(uint32_t max, uint32_t el_count, bool check = false) {
-  TinySetV ts(max);
-  std::vector<uint32_t> random_numbers;
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t el = random_int() % max;
-    random_numbers.push_back(el);
-  }
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    ts.insert(random_numbers[i]);
-    if (check) {
-      // printf("inserting %u\n", random_numbers[i]);
-      if (!ts.has(random_numbers[i])) {
-        printf("don't have something we inserted while inserting elements\n");
-        // ts.print();
-        exit(-1);
-      }
-    }
-  }
-  for (uint32_t i = 0; i < el_count; i++) {
-    if (check) {
-      if (!ts.has(random_numbers[i])) {
-        printf("don't have something we inserted after inserting elements, "
-               "index was %u, number was %u\n",
-               i, random_numbers[i]);
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  // printf("pma_sum = %lu\n", ts.pmas[0].pma32.sum());
-  uint64_t sum = ts.sum_keys();
-  uint64_t sum_duration = get_usecs() - start;
-  printf("max, %.10u, el_count , %.9u, average_insert_time milles, %.10f, "
-         "sum_time milles, %.6f\n",
-         max, el_count, ((double)insert_duration) / (double)(1000UL * el_count),
-         ((float)sum_duration) / (double)1000UL);
-  if (check) {
-    std::set<uint32_t> checker(random_numbers.begin(), random_numbers.end());
-    uint64_t sum_check = 0;
-    for (auto s : checker) {
-      sum_check += s;
-    }
-    if (sum_check != sum) {
-      printf(
-          "got bad result in TS sum in TinySet_add_test, got %lu, expect %lu\n",
-          sum, sum_check);
-      ts.print_pmas();
-      ts.print();
-      for (auto s : checker) {
-        printf("%u, ", s);
-      }
-      printf("\n");
-      exit(-1);
-      return false;
-    }
-  }
-  return true;
-}
-bool TinySet_add_test_fast(uint32_t max, uint32_t el_count) {
-  TinySetV ts(max);
-  std::vector<uint32_t> random_numbers;
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t el = random_int() % max;
-    random_numbers.push_back(el);
-  }
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    ts.insert(random_numbers[i]);
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  uint64_t sum = ts.sum_keys();
-  uint64_t sum_duration = get_usecs() - start;
-  printf("max, %.10u, el_count , %.9u, fill_frac, %f, "
-         "average_insert_time, %.10f, sum_time, %.6f, sum, %lu\n",
-         max, el_count, ((double)el_count) / max,
-         ((float)insert_duration) / (double)(1000000UL * el_count),
-         ((float)sum_duration) / (double)1000000, sum);
-  return true;
-}
-
-void tinyset_remove_test(uint32_t el_count, uint32_t max_val,
-                         bool check = false) {
-  TinySetV ts(max_val);
-  el_count = std::min(max_val - 1, el_count);
-  std::unordered_set<uint32_t> random_numbers_s;
-  while (random_numbers_s.size() < el_count) {
-    random_numbers_s.insert(random_int() % max_val);
-  }
-  std::vector<uint32_t> random_numbers;
-  random_numbers.reserve(el_count);
-  for (auto el : random_numbers_s) {
-    random_numbers.push_back(el);
-  }
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    ts.insert(random_numbers[i]);
-    if (check) {
-      // printf("adding %u\n", random_numbers[i]);
-      if (!ts.has(random_numbers[i])) {
-        printf("don't have something we inserted while inserting elements\n");
-        exit(-1);
-      }
-    }
-  }
-  for (uint32_t i = 0; i < el_count; i++) {
-    if (check) {
-      if (!ts.has(random_numbers[i])) {
-        printf("don't have something we inserted after inserting elements, "
-               "index was %u\n",
-               i);
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    ts.remove(random_numbers[i]);
-    // ts.print_pmas();
-    if (check) {
-      // printf("removing %u\n", random_numbers[i]);
-      if (ts.has(random_numbers[i])) {
-        printf("have something we removed while removing elements, tried to "
-               "remove %u\n",
-               random_numbers[i]);
-        exit(-1);
-      }
-      for (uint32_t j = i + 1; j < el_count; j++) {
-        if (!ts.has(random_numbers[j])) {
-          printf("we removed %u when we shouldn't have\n", random_numbers[j]);
-          exit(-1);
-        }
-      }
-    }
-  }
-  if (check && ts.get_n() != 0) {
-    printf("still have elements when we shouldn't\n");
-    exit(-1);
-  }
-  uint64_t remove_duration = get_usecs() - start;
-  printf("insert duration = %lu, remove duration = %lu\n", insert_duration,
-         remove_duration);
+  uint64_t duration2 = get_usecs() - start;
+  printf("it took %lu ms to sum\n", duration2 / 1000);
+  printf("%u, %lu, %lu, %lu\n", N, duration, ts.size(), sum);
 }
 
 bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
                 int iters = 20, uint32_t start_node = 0,
-                uint32_t max_batch_size = 100000) {
+                uint32_t max_batch_size = 100000,
+                bool use_degree_order = false) {
   uint32_t num_nodes = 0;
   uint64_t num_edges = 0;
   std::tuple<el_t, el_t> *edges =
@@ -631,7 +399,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
 
   printf("done reading in the file, n = %u, m = %lu\n", num_nodes, num_edges);
   uint64_t start = get_usecs();
-  SparseMatrixV<true, bool> g(num_nodes, num_nodes);
+  SparseMatrixV<true> g(num_nodes, num_nodes);
   uint64_t end = get_usecs();
   printf("creation took %lums\n", (end - start) / 1000);
   start = get_usecs();
@@ -651,7 +419,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
   */
 
   // uint32_t local_batch_size = 1000;
-  uint32_t local_batch_size = batch_size;
+  uint32_t local_batch_size = num_edges / 1000;
   if (num_edges > 10000) {
     local_batch_size = 10000;
   }
@@ -684,7 +452,14 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
   uint64_t size = g.get_memory_size();
   printf("size = %lu bytes, number of edges = %lu, number of nodes = %u\n",
          size, g.M(), num_nodes);
-  g.print_statistics();
+  SparseMatrixV<true> degree_g = g.rewrite_graph(g.degree_order_map());
+  if (use_degree_order) {
+    printf("using degree ordered relabeled graph\n");
+    g.~SparseMatrixV();
+    g = degree_g;
+    printf("size = %lu bytes, number of edges = %lu, number of nodes = %u\n",
+           size, g.M(), num_nodes);
+  }
 
 #if 1
   start = get_usecs();
@@ -693,7 +468,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
   printf("sum of all the edges was = %lu time to count %lu micros\n", sum1,
          end - start);
   start = get_usecs();
-  uint64_t sum2 = TouchAll(g);
+  uint64_t sum2 = EdgeMapVertexMap::TouchAll(g);
   end = get_usecs();
   printf("sum of all the edges was = %lu time to count %lu micros\n", sum2,
          end - start);
@@ -703,7 +478,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
 
   for (int i = 0; i < iters; i++) {
     start = get_usecs();
-    int32_t *parallel_bfs_result = BFS_with_edge_map(g, start_node);
+    int32_t *parallel_bfs_result = EdgeMapVertexMap::BFS(g, start_node);
     end = get_usecs();
     parallel_bfs_result2_ += parallel_bfs_result[0];
     if (i == 0 && parallel_bfs_result != nullptr) {
@@ -715,18 +490,18 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
              reached);
     }
     std::vector<uint32_t> depths(num_nodes, UINT32_MAX);
-    parallel_for(uint32_t j = 0; j < num_nodes; j++) {
+    ParallelTools::parallel_for(0, num_nodes, [&](uint32_t j) {
       uint32_t current_depth = 0;
       int32_t current_parent = j;
       if (parallel_bfs_result[j] < 0) {
-        continue;
+        return;
       }
       while (current_parent != parallel_bfs_result[current_parent]) {
         current_depth += 1;
         current_parent = parallel_bfs_result[current_parent];
       }
       depths[j] = current_depth;
-    }
+    });
     std::ofstream myfile;
     myfile.open("bfs.out");
     for (unsigned int i = 0; i < num_nodes; i++) {
@@ -744,7 +519,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
   bfs_milles = parallel_bfs_time2 / (1000 * iters);
 
   start = get_usecs();
-  auto *values3 = PR_S<double>(g, 10);
+  auto *values3 = EdgeMapVertexMap::PR_S<double>(g, 10);
   end = get_usecs();
   printf("pagerank with MAPS took %lums, value of 0 = %f, for %d iters\n",
          (end - start) / (1000), values3[0], iters);
@@ -764,7 +539,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
     if (values4 != nullptr) {
       free(values4);
     }
-    values4 = BC(g, start_node);
+    values4 = EdgeMapVertexMap::BC(g, start_node);
     dep_0 += values4[0];
   }
   end = get_usecs();
@@ -788,7 +563,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
     if (values5) {
       free(values5);
     }
-    values5 = CC(g);
+    values5 = EdgeMapVertexMap::CC(g);
     id_0 += values5[0];
   }
   end = get_usecs();
@@ -821,12 +596,12 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
   }
 
   free(values5);
-#if 0
-    start = get_usecs();
-    TC(g);
-    end = get_usecs();
-    printf("TC took %lums\n", (end - start) / (1000));
-    tc_milles = (end - start) / (1000);
+#if 1
+  start = get_usecs();
+  EdgeMapVertexMap::TC(g);
+  end = get_usecs();
+  printf("TC took %lums\n", (end - start) / (1000));
+  tc_milles = (end - start) / (1000);
 #endif
   start = get_usecs();
   int32_t *bf_values = nullptr;
@@ -835,7 +610,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
     if (bf_values != nullptr) {
       free(bf_values);
     }
-    bf_values = BF(g, start_node);
+    bf_values = EdgeMapVertexMap::BF(g, start_node);
     val_0 += bf_values[0];
   }
   end = get_usecs();
@@ -868,10 +643,10 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
       size_t nn = 1UL << (log2_up(num_nodes) - 1);
       auto rmat = rMat<uint32_t>(nn, r.ith_rand(0), a, b, c);
       std::vector<std::tuple<el_t, el_t>> es(b_size);
-      parallel_for(uint32_t i = 0; i < b_size; i++) {
+      ParallelTools::parallel_for(0, b_size, [&](uint32_t i) {
         std::pair<uint32_t, uint32_t> edge = rmat(i);
         es[i] = {edge.first, edge.second};
-      }
+      });
       // std::unordered_map<uint32_t, uint32_t> count_per_vertex;
       // std::map<uint32_t, uint32_t> count_per_count;
       // for (auto x : es) {
@@ -920,8 +695,8 @@ template <typename value_type>
 bool real_graph_weights(const std::string &filename,
                         [[maybe_unused]] bool symetric, int iters = 20,
                         uint32_t start_node = 0,
-                        uint32_t max_batch_size = 100000) {
-  std::cout << "value_type is " << TypeName<value_type>::Get() << std::endl;
+                        [[maybe_unused]] uint32_t max_batch_size = 100000) {
+  std::cout << "value_type is " << TypeName<value_type>() << std::endl;
   using edge_type =
       typename std::conditional<std::is_same<value_type, bool>::value,
                                 std::tuple<el_t, el_t>,
@@ -938,7 +713,7 @@ bool real_graph_weights(const std::string &filename,
   printf("creation took %lums\n", (end - start) / 1000);
   start = get_usecs();
 
-  uint32_t local_batch_size = batch_size;
+  uint32_t local_batch_size = num_edges / 1000;
   if (num_edges > 10000) {
     local_batch_size = 10000;
   }
@@ -988,7 +763,7 @@ bool real_graph_weights(const std::string &filename,
   start = get_usecs();
   uint64_t sum2 = 0;
   for (int i = 0; i < iters; i++) {
-    sum2 += TouchAll(g);
+    sum2 += EdgeMapVertexMap::TouchAll(g);
   }
   end = get_usecs();
   printf("sum of all the edges was = %lu time to count %lu micros\n",
@@ -1002,7 +777,7 @@ bool real_graph_weights(const std::string &filename,
     if (bf_values != nullptr) {
       free(bf_values);
     }
-    bf_values = BF(g, start_node);
+    bf_values = EdgeMapVertexMap::BF(g, start_node);
     val_0 += bf_values[0];
   }
   end = get_usecs();
@@ -1010,7 +785,7 @@ bool real_graph_weights(const std::string &filename,
          val_0 / iters);
   if (bf_values != nullptr) {
     std::ofstream myfile;
-    myfile.open("bf_" + TypeName<value_type>::Get() + ".out");
+    myfile.open("bf_" + TypeName<value_type>() + ".out");
     for (uint32_t i = 0; i < num_nodes; i++) {
       myfile << bf_values[i] << "\n";
     }
@@ -1019,7 +794,7 @@ bool real_graph_weights(const std::string &filename,
   }
 #endif
 // batch updates
-#if 1
+#if 0
   auto r = random_aspen();
   for (uint32_t b_size = 10; b_size <= max_batch_size; b_size *= 10) {
     double batch_insert_time = 0;
@@ -1033,14 +808,14 @@ bool real_graph_weights(const std::string &filename,
       size_t nn = 1UL << (log2_up(num_nodes) - 1);
       auto rmat = rMat<uint32_t>(nn, r.ith_rand(0), a, b, c);
       std::vector<edge_type> es(b_size);
-      parallel_for(uint32_t i = 0; i < b_size; i++) {
+      ParallelTools::parallel_for(0, b_size, [&](uint32_t i) {
         std::pair<uint32_t, uint32_t> edge = rmat(i);
         if constexpr (std::is_same_v<value_type, bool>) {
           es[i] = {edge.first, edge.second};
         } else {
           es[i] = {edge.first, edge.second, static_cast<value_type>(1)};
         }
-      }
+      });
       start = get_usecs();
       g.insert_batch(es.data(), b_size);
       end = get_usecs();
@@ -1065,41 +840,6 @@ bool real_graph_weights(const std::string &filename,
   return true;
 }
 
-void get_graph_distribution(const std::string &filename) {
-  uint32_t num_nodes = 0;
-  uint64_t num_edges = 0;
-  std::tuple<el_t, el_t> *edges =
-      get_edges_from_file(filename, &num_edges, &num_nodes);
-
-  SparseMatrixV<true, bool> g(num_nodes, num_nodes);
-
-  uint32_t local_batch_size = batch_size;
-  if (num_edges > 10000000) {
-    local_batch_size = 10000000;
-  }
-  if (num_edges > 100000000) {
-    local_batch_size = 100000000;
-  }
-  if (num_edges > 500000000) {
-    local_batch_size = 500000000;
-  }
-  uint64_t i = 0;
-  if (num_edges > local_batch_size) {
-    for (; i < num_edges - local_batch_size; i += local_batch_size) {
-      g.insert_batch(edges + i, local_batch_size);
-      fprintf(stderr, "num_edges added = %lu\n", i + local_batch_size);
-    }
-  }
-  g.insert_batch(edges + i, num_edges % local_batch_size);
-  std::map<uint64_t, uint64_t> degrees;
-  for (uint64_t i = 0; i < num_nodes; i++) {
-    degrees[g.getDegree(i)] += 1;
-  }
-  for (auto pair : degrees) {
-    printf("%lu, %lu\n", pair.first, pair.second);
-  }
-}
-
 bool real_graph_static_test(const std::string &filename,
                             [[maybe_unused]] bool symetric, int iters = 10,
                             uint32_t start_node = 0,
@@ -1117,7 +857,7 @@ bool real_graph_static_test(const std::string &filename,
 
   SparseMatrixV<true, bool> g(num_nodes, num_nodes);
 
-  uint32_t local_batch_size = batch_size;
+  uint32_t local_batch_size = num_edges / 1000;
   if (num_edges > 10000000) {
     local_batch_size = 10000000;
   }
@@ -1145,11 +885,11 @@ bool real_graph_static_test(const std::string &filename,
     return false;
   }
 #if 1
-  auto *values3 = PR_S<double>(g, 10);
+  auto *values3 = EdgeMapVertexMap::PR_S<double>(g, 10);
   free(values3);
   start = get_usecs();
   for (int i = 0; i < iters; i++) {
-    auto *values3 = PR_S<double>(g, 10);
+    auto *values3 = EdgeMapVertexMap::PR_S<double>(g, 10);
     free(values3);
   }
   end = get_usecs();
@@ -1158,11 +898,11 @@ bool real_graph_static_test(const std::string &filename,
          ((double)(end - start)) / (1000000 * iters));
   fprintf(stderr, "PR done\n");
 
-  int32_t *parallel_bfs_result = BFS_with_edge_map(g, start_node);
+  int32_t *parallel_bfs_result = EdgeMapVertexMap::BFS(g, start_node);
   free(parallel_bfs_result);
   start = get_usecs();
   for (int i = 0; i < iters; i++) {
-    int32_t *parallel_bfs_result = BFS_with_edge_map(g, start_node);
+    int32_t *parallel_bfs_result = EdgeMapVertexMap::BFS(g, start_node);
     free(parallel_bfs_result);
   }
   end = get_usecs();
@@ -1171,11 +911,11 @@ bool real_graph_static_test(const std::string &filename,
          ((double)(end - start)) / (1000000 * iters));
   fprintf(stderr, "BFS done\n");
 
-  double *values4 = BC(g, start_node);
+  double *values4 = EdgeMapVertexMap::BC(g, start_node);
   free(values4);
   start = get_usecs();
   for (int i = 0; i < iters; i++) {
-    values4 = BC(g, start_node);
+    values4 = EdgeMapVertexMap::BC(g, start_node);
     free(values4);
   }
   end = get_usecs();
@@ -1183,13 +923,13 @@ bool real_graph_static_test(const std::string &filename,
          filename.c_str(), run_info.c_str(),
          ((double)(end - start)) / (1000000 * iters));
   fprintf(stderr, "BC done\n");
-  uint32_t *values5 = CC(g);
+  uint32_t *values5 = EdgeMapVertexMap::CC(g);
   start = get_usecs();
   for (int i = 0; i < iters; i++) {
     if (values5) {
       free(values5);
     }
-    values5 = CC(g);
+    values5 = EdgeMapVertexMap::CC(g);
   }
   end = get_usecs();
   printf("tinyset, %d, Components, %d, %s, %s, %f\n", iters, start_node,
@@ -1199,10 +939,10 @@ bool real_graph_static_test(const std::string &filename,
   free(values5);
 #endif
 #if 1
-  TC(g);
+  EdgeMapVertexMap::TC(g);
   start = get_usecs();
   for (int i = 0; i < iters; i++) {
-    TC(g);
+    EdgeMapVertexMap::TC(g);
   }
   end = get_usecs();
   printf("tinyset, %d, TC, %d, %s, %s, %f\n", iters, start_node,
@@ -1210,525 +950,4 @@ bool real_graph_static_test(const std::string &filename,
          ((double)(end - start)) / (1000000 * iters));
 #endif
   return true;
-}
-
-void rewrite_graph(const std::string &filename) {
-  printf("rewriting graph %s\n", filename.c_str());
-  uint32_t num_nodes = 0;
-  uint64_t num_edges = 0;
-  std::tuple<el_t, el_t> *edges =
-      get_edges_from_file(filename, &num_edges, &num_nodes);
-  printf("num_nodes = %u\n", num_nodes);
-  std::vector<uint32_t> new_node_ids(num_nodes, 0);
-  for (uint32_t i = 0; i < num_nodes; i++) {
-    new_node_ids[i] = i;
-  }
-  std::shuffle(new_node_ids.begin(), new_node_ids.end(), rng);
-  printf("node 35 in the old graph is node %u in the new\n", new_node_ids[35]);
-  std::string f_name = filename + "el.shuf";
-  FILE *fw = fopen(f_name.c_str(), "w");
-  if (fw == nullptr) {
-    printf("file was not opened\n");
-    free(edges);
-    return;
-  }
-  for (uint64_t i = 0; i < num_edges; i++) {
-    fprintf(fw, "%u   %u\n", new_node_ids[std::get<0>(edges[i])],
-            new_node_ids[std::get<1>(edges[i])]);
-  }
-  free(edges);
-  // return 0;
-  fclose(fw);
-  printf("finished writing %s\n", (filename + "el.shuf").c_str());
-}
-
-template <int index_size, typename value_type>
-void PMA_map_insert_test_templated(uint32_t el_count, bool check = false) {
-  uint32_t max_key = UINT32_MAX;
-  if constexpr (index_size < 4) {
-    max_key = 1UL << (index_size * 8U);
-  }
-  value_type max_val = std::numeric_limits<value_type>::max();
-  PMA<index_size, value_type> pma;
-  el_count = std::min(max_key - 1, el_count);
-  std::unordered_map<uint32_t, value_type> random_pairs;
-
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t key = random_int() % max_key;
-    value_type value = random_int();
-    if constexpr (std::is_same<bool, value_type>::value) {
-      value = true;
-    }
-    if (value > max_val) {
-      if constexpr (std::is_integral<value_type>::value) {
-        value = value % max_val;
-      } else {
-        value = max_val;
-      }
-    }
-    random_pairs[key] = value;
-    // std::cout << "trying to insert (" << key << ", " << +value << ")"
-    //           << std::endl;
-
-    pma.insert({key, value});
-    if (check) {
-      if (!pma.has(key)) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u\n",
-               key);
-        pma.print_pma();
-        exit(-1);
-      }
-      if (pma.value(key) != value) {
-        printf("FAILED: value doesn't match while inserting elements, key was "
-               "%u\n",
-               key);
-        std::cout << +pma.value(key) << ", " << +value << std::endl;
-        pma.print_pma();
-        exit(-1);
-      }
-    }
-  }
-  for (auto &pair : random_pairs) {
-    if (check) {
-      if (!pma.has(pair.first)) {
-        printf("FAILED: don't have something we inserted after inserting "
-               "elements, "
-               "key was %u\n",
-               pair.first);
-        pma.print_pma();
-        exit(-1);
-      }
-      if (pma.value(pair.first) != pair.second) {
-        printf("FAILED: value doesn't match after inserting elements\n");
-        std::cout << "key is " << +pair.first << std::endl;
-        std::cout << +pma.value(pair.first) << ", " << +pair.second
-                  << std::endl;
-        ;
-        pma.print_pma();
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  printf("max, %.9u, index_size , %.2u, value_size %.2lu, el_count , %.9u, "
-         "average_insert_time, "
-         "%.10f\n",
-         max_key, index_size, sizeof(value_type), el_count,
-         ((float)insert_duration) / (float)(1000000 * el_count));
-}
-
-void PMA_map_insert_test(uint32_t el_count, bool check = false) {
-  PMA_map_insert_test_templated<1, uint8_t>(el_count, check);
-  PMA_map_insert_test_templated<2, uint32_t>(el_count, check);
-  PMA_map_insert_test_templated<3, float>(el_count, check);
-  PMA_map_insert_test_templated<4, double>(el_count, check);
-}
-
-template <int index_size, typename value_type>
-void PMA_map_remove_test_templated(uint32_t el_count, bool check = false) {
-  uint32_t max_key = UINT32_MAX;
-  if constexpr (index_size < 4) {
-    max_key = 1UL << (index_size * 8U);
-  }
-  value_type max_val = std::numeric_limits<value_type>::max();
-  PMA<index_size, value_type> pma;
-  el_count = std::min(max_key - 1, el_count);
-  std::unordered_map<uint32_t, value_type> random_pairs = {};
-
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t key = random_int() % max_key;
-    value_type value = random_int();
-    if constexpr (std::is_same<bool, value_type>::value) {
-      value = true;
-    }
-    if (value > max_val) {
-      if constexpr (std::is_integral<value_type>::value) {
-        value = value % max_val;
-      } else {
-        value = max_val;
-      }
-    }
-    random_pairs.insert_or_assign(key, value);
-    // std::cout << "trying to insert (" << key << ", " << +value << ")"
-    //           << std::endl;
-
-    pma.insert({key, value});
-    // pma.print_pma();
-    if (check) {
-      if (!pma.has(key)) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u\n",
-               key);
-        pma.print_pma();
-        exit(-1);
-      }
-      if (pma.value(key) != value) {
-        printf("FAILED: value doesn't match while inserting elements\n");
-        std::cout << pma.value(key) << ", " << value << std::endl;
-        pma.print_pma();
-        exit(-1);
-      }
-    }
-  }
-  for (auto &pair : random_pairs) {
-    if (check) {
-      if (!pma.has(pair.first)) {
-        printf("FAILED: don't have something we inserted after inserting "
-               "elements, "
-               "key was %u\n",
-               pair.first);
-        exit(-1);
-      }
-      if (pma.value(pair.first) != pair.second) {
-        printf("FAILED: value doesn't match after inserting elements\n");
-        std::cout << "key is " << +pair.first << std::endl;
-        std::cout << +pma.value(pair.first) << ", " << +pair.second
-                  << std::endl;
-        ;
-        pma.print_pma();
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  for (auto &pair : random_pairs) {
-    // std::cout << "trying to remove: " << pair.first << std::endl;
-    pma.remove(pair.first);
-    // pma.print_pma();
-    if (check) {
-      if (pma.has(pair.first)) {
-        printf("have something we removed while removing elements, tried to "
-               "remove %u\n",
-               pair.first);
-        exit(-1);
-      }
-    }
-  }
-  if (check && pma.get_n() != 0) {
-    printf("still have elements when we shouldn't\n");
-    exit(-1);
-  }
-  uint64_t remove_duration = get_usecs() - start;
-  printf("insert duration = %lu, remove duration = %lu\n", insert_duration,
-         remove_duration);
-}
-
-void PMA_map_remove_test(uint32_t el_count, bool check = false) {
-  PMA_map_remove_test_templated<1, uint8_t>(el_count, check);
-  PMA_map_remove_test_templated<2, uint32_t>(el_count, check);
-  PMA_map_remove_test_templated<3, float>(el_count, check);
-  PMA_map_remove_test_templated<4, double>(el_count, check);
-}
-
-template <typename value_type>
-void tinyset_map_insert_test_templated(uint32_t el_count, uint32_t max_key,
-                                       bool check = false) {
-  value_type max_val = std::numeric_limits<value_type>::max();
-  TinySetV<value_type> ts(max_key);
-  std::unordered_map<uint32_t, value_type> random_pairs;
-
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t key = random_int() % max_key;
-    value_type value = random_int();
-    if constexpr (std::is_same<bool, value_type>::value) {
-      value = true;
-    }
-    if (value > max_val) {
-      if constexpr (std::is_integral<value_type>::value) {
-        value = value % max_val;
-      } else {
-        value = max_val;
-      }
-    }
-    random_pairs[key] = value;
-    // std::cout << "trying to insert (" << key << ", " << +value << ")"
-    //           << std::endl;
-
-    ts.insert(key, value);
-    // ts.print_pmas();
-    if (check) {
-      if (!ts.has(key)) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u\n",
-               key);
-        ts.print();
-        ts.print_pmas();
-        exit(-1);
-      }
-      if (ts.value(key) != value) {
-        printf("FAILED: value doesn't match while inserting elements\n");
-        std::cout << +ts.value(key) << ", " << value << std::endl;
-        ts.print();
-        ts.print_pmas();
-        exit(-1);
-      }
-    }
-  }
-  for (auto &pair : random_pairs) {
-    if (check) {
-      if (!ts.has(pair.first)) {
-        printf("FAILED: don't have something we inserted after inserting "
-               "elements, "
-               "key was %u\n",
-               pair.first);
-        exit(-1);
-      }
-      if (ts.value(pair.first) != pair.second) {
-        printf("FAILED: value doesn't match after inserting elements\n");
-        std::cout << "key is " << +pair.first << std::endl;
-        std::cout << +ts.value(pair.first) << ", " << +pair.second << std::endl;
-        ;
-        ts.print();
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  uint64_t sum_keys = ts.sum_keys();
-  value_type sum_values = ts.sum_values();
-  printf("sum_keys = %lu: ", sum_keys);
-  std::cout << "sum_keys = " << +sum_values << ": ";
-  uint64_t sum_duration = get_usecs() - start;
-  if (check) {
-    uint64_t correct_sum_keys = 0;
-    value_type correct_sum_values = 0;
-    for (auto &pair : random_pairs) {
-      correct_sum_keys += pair.first;
-      correct_sum_values += pair.second;
-    }
-    if (sum_keys != correct_sum_keys) {
-      printf("\nFAILED: sum_keys doesn't match, got %lu, expected %lu\n",
-             sum_keys, correct_sum_keys);
-      exit(-1);
-    }
-    if (!approximatelyEqual(sum_values, correct_sum_values,
-                            std::numeric_limits<float>::epsilon() * 10000)) {
-      printf("\nFAILED: sum_values doesn't match\n");
-      std::cout << "got " << +sum_values << " expected " << +correct_sum_values
-                << std::endl;
-      // ts.print();
-      // for (auto &pair : random_pairs) {
-      //   std::cout << "{" << pair.first << ", " << +pair.second << "}"
-      //             << ", ";
-      // }
-      // std::cout << std::endl;
-      exit(-1);
-    }
-  }
-
-  printf("value_size %.2lu, el_count , %.9u, "
-         "average_insert_time, "
-         "%.10f, sum time = %lu\n",
-         sizeof(value_type), el_count,
-         ((float)insert_duration) / (float)(1000000 * el_count),
-         sum_duration / 1000);
-}
-
-void tinyset_map_insert_test(
-    uint32_t el_count, uint32_t max_key = std::numeric_limits<uint32_t>::max(),
-    bool check = false) {
-  tinyset_map_insert_test_templated<uint8_t>(el_count, max_key, check);
-  tinyset_map_insert_test_templated<uint32_t>(el_count, max_key, check);
-  tinyset_map_insert_test_templated<float>(el_count, max_key, check);
-  tinyset_map_insert_test_templated<double>(el_count, max_key, check);
-}
-
-template <typename value_type>
-void tinyset_map_remove_test_templated(uint32_t el_count, uint32_t max_key,
-                                       bool check = false) {
-  value_type max_val = std::numeric_limits<value_type>::max();
-  TinySetV<value_type> ts(max_key);
-  std::unordered_map<uint32_t, value_type> random_pairs;
-
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t key = random_int() % max_key;
-    value_type value = random_int();
-    if constexpr (std::is_same<bool, value_type>::value) {
-      value = true;
-    }
-    if (value > max_val) {
-      if constexpr (std::is_integral<value_type>::value) {
-        value = value % max_val;
-      } else {
-        value = max_val;
-      }
-    }
-    random_pairs[key] = value;
-    // std::cout << "trying to insert (" << key << ", " << +value << ")"
-    //           << std::endl;
-
-    ts.insert(key, value);
-    if (check) {
-      if (!ts.has(key)) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u\n",
-               key);
-        ts.print();
-        exit(-1);
-      }
-      if (ts.value(key) != value) {
-        printf("FAILED: value doesn't match while inserting elements\n");
-        std::cout << +ts.value(key) << ", " << value << std::endl;
-        ts.print();
-        exit(-1);
-      }
-    }
-  }
-  for (auto &pair : random_pairs) {
-    if (check) {
-      if (!ts.has(pair.first)) {
-        printf("FAILED: don't have something we inserted after inserting "
-               "elements, "
-               "key was %u\n",
-               pair.first);
-        exit(-1);
-      }
-      if (ts.value(pair.first) != pair.second) {
-        printf("FAILED: value doesn't match after inserting elements\n");
-        std::cout << "key is " << +pair.first << std::endl;
-        std::cout << +ts.value(pair.first) << ", " << +pair.second << std::endl;
-        ;
-        ts.print();
-        exit(-1);
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  start = get_usecs();
-  for (auto &pair : random_pairs) {
-    ts.remove(pair.first);
-    if (check) {
-      if (ts.has(pair.first)) {
-        printf("have something we removed while removing elements, tried to "
-               "remove %u\n",
-               pair.first);
-        exit(-1);
-      }
-    }
-  }
-  if (check && ts.get_n() != 0) {
-    printf("still have elements when we shouldn't\n");
-    exit(-1);
-  }
-  uint64_t remove_duration = get_usecs() - start;
-  printf("insert duration = %lu, remove duration = %lu\n", insert_duration,
-         remove_duration);
-}
-
-void tinyset_map_remove_test(
-    uint32_t el_count, uint32_t max_key = std::numeric_limits<uint32_t>::max(),
-    bool check = false) {
-  tinyset_map_remove_test_templated<uint8_t>(el_count, max_key, check);
-  tinyset_map_remove_test_templated<uint32_t>(el_count, max_key, check);
-  tinyset_map_remove_test_templated<float>(el_count, max_key, check);
-  tinyset_map_remove_test_templated<double>(el_count, max_key, check);
-}
-
-template <typename value_type>
-void matrix_values_add_remove_test_templated(uint32_t el_count,
-                                             uint32_t row_count,
-                                             bool check = false) {
-  value_type max_val = std::numeric_limits<value_type>::max();
-  SparseMatrixV<true, value_type> mat(row_count, row_count);
-  std::unordered_map<uint32_t, std::unordered_map<uint32_t, value_type>>
-      correct_matrix;
-
-  uint64_t start = get_usecs();
-  for (uint32_t i = 0; i < el_count; i++) {
-    uint32_t r = random_int() % row_count;
-    uint32_t c = random_int() % row_count;
-    value_type value = random_int();
-    if constexpr (std::is_same<bool, value_type>::value) {
-      value = true;
-    }
-    if (value > max_val) {
-      if constexpr (std::is_integral<value_type>::value) {
-        value = value % max_val;
-      } else {
-        value = max_val;
-      }
-    }
-    correct_matrix[r][c] = value;
-
-    mat.insert(r, c, value);
-    if (check) {
-      if (!mat.has(r, c)) {
-        printf("FAILED: don't have something we inserted while inserting "
-               "elements, %u, %u\n",
-               r, c);
-        mat.print_arrays();
-        exit(-1);
-      }
-      if (mat.value(r, c) != value) {
-        printf("FAILED: value doesn't match while inserting elements\n");
-        std::cout << +mat.value(r, c) << ", " << value << std::endl;
-        mat.print_arrays();
-        exit(-1);
-      }
-    }
-  }
-  uint64_t correct_sum = 0;
-  for (auto &row : correct_matrix) {
-    for (auto &pair : row.second) {
-      correct_sum += pair.first;
-      if (check) {
-        if (!mat.has(row.first, pair.first)) {
-          printf("FAILED: don't have something we inserted after inserting "
-                 "elements, "
-                 "row was %u, col was %u\n",
-                 row.first, pair.first);
-          exit(-1);
-        }
-        if (mat.value(row.first, pair.first) != pair.second) {
-          printf("FAILED: value doesn't match after inserting elements\n");
-          mat.print_arrays();
-          exit(-1);
-        }
-      }
-    }
-  }
-  uint64_t insert_duration = get_usecs() - start;
-  printf("sum is %lu\n", mat.touch_all_sum());
-  if (mat.touch_all_sum() != correct_sum) {
-    printf("FAILED: sum didn't match after inserting elements\n");
-    mat.print_arrays();
-    exit(-1);
-  }
-
-  start = get_usecs();
-  for (auto &row : correct_matrix) {
-    for (auto &pair : row.second) {
-      mat.remove(row.first, pair.first);
-      if (check) {
-        if (mat.has(row.first, pair.first)) {
-          printf("have something we removed while removing elements\n");
-          exit(-1);
-        }
-      }
-    }
-  }
-  if (check && mat.M() != 0) {
-    printf("still have elements when we shouldn't\n");
-    exit(-1);
-  }
-  uint64_t remove_duration = get_usecs() - start;
-  printf("insert duration = %lu, remove duration = %lu\n", insert_duration,
-         remove_duration);
-}
-
-void matrix_values_add_remove_test(
-    uint32_t el_count,
-    uint32_t row_count = std::numeric_limits<uint32_t>::max(),
-    bool check = false) {
-  matrix_values_add_remove_test_templated<uint8_t>(el_count, row_count, check);
-  matrix_values_add_remove_test_templated<uint32_t>(el_count, row_count, check);
-  matrix_values_add_remove_test_templated<float>(el_count, row_count, check);
-  matrix_values_add_remove_test_templated<double>(el_count, row_count, check);
 }

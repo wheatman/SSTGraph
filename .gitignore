@@ -11,3 +11,9 @@ perf.data
 perf.data.old
 default.prof*
 test_out/*
+run_basic
+pma_test
+sparsematrix_test
+test_graph
+tinyset_test
+basic
