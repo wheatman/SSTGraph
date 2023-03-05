@@ -80,7 +80,12 @@ public:
       new (&lines[i]) TinySetV_small<Ts...>(source.lines[i], ts_data);
     });
   }
-  ~SparseMatrixV();
+  ~SparseMatrixV() {
+    for (uint32_t i = 0; i < line_count; i++) {
+      lines[i].destroy(ts_data);
+    }
+    free(lines);
+  }
   static constexpr bool is_csr() { return is_csr_; }
   static constexpr bool is_csc() { return !is_csr_; }
   static constexpr bool is_binary() { return binary; }
@@ -690,11 +695,4 @@ SparseMatrixV<is_csr_, Ts...>::SparseMatrixV(el_t height, el_t width) {
   }
 }
 
-template <bool is_csr_, typename... Ts>
-SparseMatrixV<is_csr_, Ts...>::~SparseMatrixV<is_csr_, Ts...>() {
-  for (uint32_t i = 0; i < line_count; i++) {
-    lines[i].destroy(ts_data);
-  }
-  free(lines);
-}
 } // namespace SSTGraph

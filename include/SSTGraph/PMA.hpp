@@ -276,7 +276,11 @@ public:
   }
   PMA();
   PMA(const PMA &source);
-  ~PMA();
+  ~PMA() {
+    if (!stored_in_place()) {
+      free(array.p_data);
+    }
+  }
   void print_pma(uint32_t prefix = 0) const;
   [[nodiscard]] bool has(key_type e) const;
   value_type value(key_type e) const;
@@ -1379,10 +1383,4 @@ template <typename key_type, typename... Ts>
 PMA<key_type, Ts...>::PMA()
     : real_logN(4), count_elements(0), b_spot(sizeof(key_type)) {}
 
-template <typename key_type, typename... Ts>
-PMA<key_type, Ts...>::~PMA<key_type, Ts...>() {
-  if (!stored_in_place()) {
-    free(array.p_data);
-  }
-}
 } // namespace SSTGraph
