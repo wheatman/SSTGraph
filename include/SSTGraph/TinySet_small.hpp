@@ -614,7 +614,7 @@ void TinySetV_small<Ts...>::print(const extra_data &d) const {
   } else {
     map<true, Is...>(
         [](el_t key, NthType<Is>... args) {
-          std::cout << "(" << key << ", ";
+          std::cout << "(" << key;
           ((std::cout << ", " << args), ...);
           std::cout << "), ";
         },

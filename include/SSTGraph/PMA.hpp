@@ -365,8 +365,7 @@ template <typename key_type, typename... Ts>
 template <bool no_early_exit, size_t... Is, class F>
 bool PMA<key_type, Ts...>::map(F f, uint64_t prefix) const {
 
-  static_assert(std::is_invocable_v<decltype(&F::operator()), F &, uint32_t,
-                                    NthType<Is>...>,
+  static_assert(std::is_invocable_v<F, uint32_t, NthType<Is>...>,
                 "update function must match given types");
   auto f_add_prefix = [f, prefix](uint32_t key, auto... args) {
     return f(key + prefix, args...);

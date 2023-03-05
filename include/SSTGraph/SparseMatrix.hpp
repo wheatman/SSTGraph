@@ -113,15 +113,28 @@ public:
   }
 
   template <class F, size_t... Is>
-  void map_neighbors(uint64_t i, F &f, [[maybe_unused]] void *d,
-                     bool parallel) const {
+  void map_neighbors_impl(
+      uint64_t i, F &f, [[maybe_unused]] void *d, bool parallel,
+      [[maybe_unused]] std::integer_sequence<size_t, Is...> int_seq) const {
 
-    static_assert(std::is_invocable_v<decltype(&F::operator()), F &, uint64_t,
-                                      uint64_t, NthType<Is>...> ||
-                      std::is_invocable_v<decltype(&F::operator()), F &,
-                                          uint64_t, uint64_t, bool>,
-                  "update function must match given types");
     constexpr bool keys_only = sizeof...(Is) == 0;
+    if constexpr (keys_only) {
+      static_assert(std::is_invocable_v<F, uint64_t, uint64_t>,
+                    "update function must match given types");
+    } else {
+      if constexpr (binary) {
+        // if its binary and we are calling on types, we will arbitarily pass in
+        // something of an interger type (they will have value 1) and the
+        // function will then convert this to whatever type it wants
+        static_assert(
+            std::is_invocable_v<F, uint64_t, uint64_t, decltype(Is)...>,
+            "update function must match given types");
+      } else {
+        static_assert(
+            std::is_invocable_v<F, uint64_t, uint64_t, NthType<Is>...>,
+            "update function must match given types");
+      }
+    }
 
     if constexpr (keys_only) {
       lines[i].template map<F::no_early_exit>([&](el_t el) { return f(i, el); },
@@ -137,13 +150,38 @@ public:
       }
     }
   }
+
   template <class F, size_t... Is>
-  void map_range(F &f, uint64_t start_node, uint64_t end_node,
-                 [[maybe_unused]] void *d) const {
-    static_assert(std::is_invocable_v<decltype(&F::operator()), F &, uint32_t,
-                                      uint64_t, uint32_t, NthType<Is>...>,
-                  "update function must match given types");
+  void map_neighbors(uint64_t i, F &f, [[maybe_unused]] void *d,
+                     bool parallel) const {
+
+    if constexpr (sizeof...(Is) > 0) {
+      map_neighbors_impl<Is...>(i, f, d, parallel, {});
+    } else {
+      map_neighbors_impl(i, f, d, parallel,
+                         std::make_index_sequence<sizeof...(Ts)>{});
+    }
+  }
+
+  template <class F, size_t... Is>
+  void map_range_impl(
+      F &f, uint64_t start_node, uint64_t end_node, [[maybe_unused]] void *d,
+      [[maybe_unused]] std::integer_sequence<size_t, Is...> int_seq) const {
     constexpr bool keys_only = sizeof...(Is) == 0;
+    if constexpr (keys_only) {
+      static_assert(std::is_invocable_v<F, uint64_t, uint64_t>,
+                    "update function must match given types");
+    } else {
+      if constexpr (binary) {
+        static_assert(
+            std::is_invocable_v<F, uint64_t, uint64_t, decltype(Is)...>,
+            "update function must match given types");
+      } else {
+        static_assert(
+            std::is_invocable_v<F, uint64_t, uint64_t, NthType<Is>...>,
+            "update function must match given types");
+      }
+    }
     for (uint64_t i = start_node; i < end_node - 1; i++) {
       lines[i + 1].prefetch_data(ts_data);
       if constexpr (keys_only) {
@@ -176,12 +214,23 @@ public:
     }
   }
 
+  template <class F, size_t... Is>
+  void map_range(F &f, uint64_t start_node, uint64_t end_node,
+                 [[maybe_unused]] void *d) const {
+    if constexpr (sizeof...(Is) > 0) {
+      map_range_impl<Is...>(f, start_node, end_node, d, {});
+    } else {
+      map_range_impl(f, start_node, end_node, d,
+                     std::make_index_sequence<sizeof...(Ts)>{});
+    }
+  }
+
   [[nodiscard]] uint64_t get_memory_size() const;
   [[nodiscard]] uint64_t M() const;
   [[nodiscard]] SparseMatrixV<true, Ts...> convert_to_csr();
   [[nodiscard]] SparseMatrixV<false, Ts...> convert_to_csc();
 
-  void print_arrays() const {
+  template <size_t... Is> void print_arrays() const {
     if constexpr (is_csr()) {
       printf("matrix stored in csr\n");
     }
@@ -191,7 +240,7 @@ public:
     printf("there are %lu elements\n", M());
     for (uint32_t line = 0; line < line_count; line++) {
       printf("line %u\n", line);
-      lines[line].print(ts_data);
+      lines[line].template print<Is...>(ts_data);
       uint64_t sum_key = 0;
       lines[line].template map<true>([&sum_key](el_t key) { sum_key += key; },
                                      ts_data);
