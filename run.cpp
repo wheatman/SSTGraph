@@ -16,7 +16,7 @@ using namespace SSTGraph;
 
 int main(int argc, char *argv[]) {
 
-  cxxopts::Options options("Graph tester", "Runns tests on different graphs");
+  cxxopts::Options options("Graph tester", "Runs tests on different graphs");
 
   options.positional_help("Help Text");
   // clang-format off
