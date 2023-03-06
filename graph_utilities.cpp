@@ -196,9 +196,17 @@ void make_ER_graph(uint32_t nodes, double p, bool symetrize,
     printf("file was not opened\n");
     return;
   }
-  for (uint32_t i = 0; i < nodes; i++) {
-    g.map_line<true>([&](el_t dest) { fprintf(fw, "%u   %u\n", i, dest); }, i,
-                     false);
+  fprintf(fw, "AdjacencyGraph\n");
+  fprintf(fw, "%u\n", nodes);
+  fprintf(fw, "%lu\n", g.M());
+  uint64_t offset = 0;
+  for (uint64_t i = 0; i < nodes; i++) {
+    fprintf(fw, "%lu\n", offset);
+    offset += g.getDegree(i);
+  }
+
+  for (uint64_t i = 0; i < nodes; i++) {
+    g.map_line<true>([&](el_t dest) { fprintf(fw, "%u\n", dest); }, i, false);
   }
   fclose(fw);
 }
@@ -296,7 +304,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (result.count("make_er") > 0) {
-    make_ER_graph(rows, p, true, result["make_er"].as<std::string>());
+    make_ER_graph(rows, p, false, result["make_er"].as<std::string>());
     return 0;
   }
 
