@@ -144,7 +144,7 @@ class __attribute__((__packed__)) PMA {
 
   static constexpr key_type NULL_VAL = {};
 
-  template <class T> class unaligned_pointer {
+  template <class T> class __attribute__((__packed__)) unaligned_pointer {
     std::array<uint8_t, sizeof(T *)> data;
 
   public:
@@ -271,11 +271,42 @@ public:
   }
   void prefetch_data() const { __builtin_prefetch(array.p_data, 0, 3); }
 
-  void shallow_copy(const PMA *source) {
-    memcpy(static_cast<void *>(this), source, sizeof(PMA));
-  }
   PMA();
-  PMA(const PMA &source);
+  PMA(const PMA &source) {
+    memcpy(static_cast<void *>(this), &source, sizeof(PMA));
+    if (!stored_in_place()) {
+      array.p_data = std::malloc(SOA_type::get_size_static(N()));
+      memcpy(array.p_data, source.array.p_data, SOA_type::get_size_static(N()));
+    }
+  }
+  PMA(PMA &&source) {
+    memcpy(static_cast<void *>(this), &source, sizeof(PMA));
+    source.clean_no_free();
+  }
+  PMA &operator=(const PMA &source) {
+    if (this != &source) {
+      if (!stored_in_place()) {
+        free(array.p_data);
+      }
+      memcpy(static_cast<void *>(this), &source, sizeof(PMA));
+      if (!stored_in_place()) {
+        array.p_data = std::malloc(SOA_type::get_size_static(N()));
+        memcpy(array.p_data, source.array.p_data,
+               SOA_type::get_size_static(N()));
+      }
+    }
+    return *this;
+  }
+  PMA &operator=(PMA &&source) {
+    if (this != &source) {
+      if (!stored_in_place()) {
+        free(array.p_data);
+      }
+      memcpy(static_cast<void *>(this), &source, sizeof(PMA));
+      source.clean_no_free();
+    }
+    return *this;
+  }
   ~PMA() {
     if (!stored_in_place()) {
       free(array.p_data);
@@ -1046,7 +1077,7 @@ bool PMA<key_type, Ts...>::insert(element_type e) {
     uint32_t first_greater = 0;
     for (uint32_t i = 0; i < count_elements; i++) {
       element_type item =
-          SOA_type::get_static(&array.raw_data[0], num_raw_items, i);
+          SOA_type::get_static(array.raw_data, num_raw_items, i);
       if (std::get<0>(item) == key) {
         // update the value if its different
         if constexpr (!binary) {
@@ -1086,8 +1117,8 @@ bool PMA<key_type, Ts...>::insert(element_type e) {
       while (count_elements > N()) {
         real_logN += 1;
       }
-      array.p_data = SOA_type::resize_static(&raw_data_saved.raw_data[0],
-                                             num_raw_items, N());
+      array.p_data =
+          SOA_type::resize_static(raw_data_saved.raw_data, num_raw_items, N());
       // print_array();
     }
   }
@@ -1187,7 +1218,7 @@ bool PMA<key_type, Ts...>::remove(key_type e) {
     // printf("removing element from in place\n");
     for (uint32_t i = 0; i < count_elements; i++) {
       if (std::get<0>(SOA_type::template get_static<0>(
-              &array.raw_data[0], num_raw_items, i)) == e) {
+              array.raw_data, num_raw_items, i)) == e) {
         // printf("found the elment in position %u\n", i);
 
         for (uint64_t j = i; j < count_elements; j++) {
@@ -1212,7 +1243,7 @@ bool PMA<key_type, Ts...>::remove(key_type e) {
         // TODO(wheatman) could combine resize and slide left
         void *old_array = array.p_data;
 
-        for (uint64_t j = i; j < count_elements - 1; j++) {
+        for (uint64_t j = i; j < count_elements - 1U; j++) {
           SOA_type::get_static(old_array, N(), j) =
               SOA_type::get_static(old_array, N(), j + 1);
         }
@@ -1234,7 +1265,7 @@ bool PMA<key_type, Ts...>::remove(key_type e) {
       // printf("going back to in place\n");
       void *old_array = array.p_data;
       for (uint32_t i = 0; i < count_elements; i++) {
-        SOA_type::get_static(&array.raw_data[0], num_raw_items, i) =
+        SOA_type::get_static(array.raw_data, num_raw_items, i) =
             SOA_type::get_static(old_array, N(), i);
       }
       free(old_array);

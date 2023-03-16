@@ -128,12 +128,11 @@ private:
 
 public:
   [[nodiscard]] uint8_t get_b() const { return pmas.get_b(); }
-  [[nodiscard]] uint32_t
-  find_best_b_for_given_element_count(uint64_t element_count,
-                                      const std::vector<uint32_t> &b_options,
-                                      uint64_t max_val) const;
+  [[nodiscard]] uint32_t static find_best_b_for_given_element_count(
+      uint64_t element_count, const std::vector<uint32_t> &b_options,
+      uint64_t max_val);
 
-  [[nodiscard]] extra_data get_thresholds(uint64_t element_count) const;
+  [[nodiscard]] static extra_data get_thresholds(uint64_t element_count);
 
   [[nodiscard]] uint32_t get_pma_count(const extra_data &d) const {
     return TimeSet_small_helpers::calc_pma_count(d.max_el, pmas.get_b());
@@ -216,7 +215,7 @@ uint32_t calc_pma_count(uint64_t max_el, uint32_t b) {
 
 template <typename... Ts>
 typename TinySetV_small<Ts...>::extra_data
-TinySetV_small<Ts...>::get_thresholds(uint64_t element_count) const {
+TinySetV_small<Ts...>::get_thresholds(uint64_t element_count) {
   extra_data d = {};
   d.max_el = element_count;
   d.thresh_24 = 2;
@@ -254,7 +253,7 @@ TinySetV_small<Ts...>::get_thresholds(uint64_t element_count) const {
 template <typename... Ts>
 uint32_t TinySetV_small<Ts...>::find_best_b_for_given_element_count(
     uint64_t element_count, const std::vector<uint32_t> &b_options,
-    uint64_t max_val) const {
+    uint64_t max_val) {
   assert(!b_options.empty());
   std::vector<uint64_t> size_guesses(b_options.size());
   for (uint64_t i = 0; i < b_options.size(); i++) {
@@ -882,7 +881,7 @@ void TinySetV_small<Ts...>::change_index(uint32_t old_pma_count,
   // printf("changing index from %u, to %u, old_count = %u, new_count = %u\n",
   //        old_b, new_b, old_pma_count, new_pma_count);
   pma_types *new_pmas = nullptr;
-  PMA<sized_uint<new_b>, Ts...> *new_pma_in_place = nullptr;
+  PMA<sized_uint<new_b>, Ts...> new_pma_in_place;
   [[maybe_unused]] uint32_t *new_bit_array_start = nullptr;
   if (new_pma_count > 1) {
     if constexpr (use_bit_array) {
@@ -894,12 +893,8 @@ void TinySetV_small<Ts...>::change_index(uint32_t old_pma_count,
       new_pmas = (pma_types *)malloc(new_pma_count * sizeof(pma_types));
     }
     for (uint32_t i = 0; i < new_pma_count; i++) {
-      auto pma = PMA<sized_uint<new_b>, Ts...>();
-      std::memcpy(&new_pmas[i], &pma, sizeof(pma));
-      pma.clean_no_free();
+      new (&new_pmas[i]) PMA<sized_uint<new_b>, Ts...>();
     }
-  } else {
-    new_pma_in_place = new PMA<sized_uint<new_b>, Ts...>();
   }
   // TODO(wheatman) we know all of these inserts are to the end since the old
   // pma is sorted
@@ -912,9 +907,9 @@ void TinySetV_small<Ts...>::change_index(uint32_t old_pma_count,
       el_t val = std::get<0>(*it);
       if (new_pma_count == 1) {
         if constexpr (binary) {
-          new_pma_in_place->insert(val);
+          new_pma_in_place.insert(val);
         } else {
-          new_pma_in_place->insert(std::tuple_cat(
+          new_pma_in_place.insert(std::tuple_cat(
               std::make_tuple(sized_uint<new_b>(val)), leftshift_tuple(*it)));
         }
 
@@ -952,9 +947,9 @@ void TinySetV_small<Ts...>::change_index(uint32_t old_pma_count,
         }
         if (new_pma_count == 1) {
           if constexpr (binary) {
-            new_pma_in_place->insert(val);
+            new_pma_in_place.insert(val);
           } else {
-            new_pma_in_place->insert(std::tuple_cat(
+            new_pma_in_place.insert(std::tuple_cat(
                 std::make_tuple(sized_uint<new_b>(val)), leftshift_tuple(*it)));
           }
           continue;
@@ -1000,13 +995,24 @@ void TinySetV_small<Ts...>::change_index(uint32_t old_pma_count,
   if (new_pma_count == 1) {
     pmas.set_b(new_b);
 #if NO_INLINE_TINYSET == 1
-    pmas.d = (pma_types_ *)new_pma_in_place;
+    pmas.d = (pma_types_ *)new PMA<sized_uint<new_b>, Ts...>(new_pma_in_place);
 #else
-    reinterpret_cast<PMA<sized_uint<new_b>, Ts...> *>(&pmas.d[0])
-        ->shallow_copy(new_pma_in_place);
-    // remove control of the elements from the temp pma
-    new_pma_in_place->clean_no_free();
-    delete new_pma_in_place;
+    if constexpr (new_b == 1) {
+      new (&pmas.d[0].pma1)
+          PMA<sized_uint<new_b>, Ts...>(std::move(new_pma_in_place));
+    }
+    if constexpr (new_b == 2) {
+      new (&pmas.d[0].pma2)
+          PMA<sized_uint<new_b>, Ts...>(std::move(new_pma_in_place));
+    }
+    if constexpr (new_b == 3) {
+      new (&pmas.d[0].pma3)
+          PMA<sized_uint<new_b>, Ts...>(std::move(new_pma_in_place));
+    }
+    if constexpr (new_b == 4) {
+      new (&pmas.d[0].pma4)
+          PMA<sized_uint<new_b>, Ts...>(std::move(new_pma_in_place));
+    }
 #endif
   } else {
     pmas.set_b(new_b);

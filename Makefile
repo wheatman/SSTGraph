@@ -7,7 +7,8 @@ TINYSET_32?=0
 NO_INLINE_TINYSET?=0
 PARLAY?=0
 
-CFLAGS := -Wall -Wno-address-of-packed-member -Wextra -O$(OPT) -g -gdwarf-4 -std=c++20 -IParallelTools/ -IStructOfArrays/include/ -Iparlaylib/include/ -Icxxopts/include/ -IEdgeMapVertexMap/include/ -Iinclude/ -ferror-limit=1 -ftemplate-backtrace-limit=0
+CFLAGS := -Wall -Wno-address-of-packed-member -Wextra -O$(OPT) -g -gdwarf-4 -std=c++20 -IParallelTools/ -IStructOfArrays/include/ -Iparlaylib/include/ -Icxxopts/include/ -IEdgeMapVertexMap/include/ -Iinclude/
+#-ferror-limit=1 -ftemplate-backtrace-limit=0
 
 LDFLAGS := -lrt -lm -lm -ldl -lpthread
 

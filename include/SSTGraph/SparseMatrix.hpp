@@ -47,7 +47,7 @@ private:
 
   TinySetV_small<Ts...> *lines;
   typename TinySetV_small<Ts...>::extra_data ts_data;
-  uint32_t line_count;
+  uint32_t line_count = 0;
   uint32_t line_width;
 
 public:
@@ -70,7 +70,21 @@ public:
                                                line_width + 1, line_width + 1);
   }
 
-  SparseMatrixV(el_t height, el_t width);
+  SparseMatrixV(el_t height, el_t width) {
+    if constexpr (is_csr()) {
+      line_count = height;
+      line_width = width;
+    } else {
+      line_count = width;
+      line_width = height;
+    }
+    lines = (TinySetV_small<Ts...> *)malloc(line_count *
+                                            sizeof(TinySetV_small<Ts...>));
+    ts_data = TinySetV_small<Ts...>::get_thresholds(line_width);
+    for (el_t i = 0; i < line_count; i++) {
+      new (&lines[i]) TinySetV_small<Ts...>();
+    }
+  }
   SparseMatrixV(const SparseMatrixV &source)
       : ts_data(source.ts_data), line_count(source.line_count),
         line_width(source.line_width) {
@@ -79,6 +93,50 @@ public:
     ParallelTools::parallel_for(0, line_count, [&](el_t i) {
       new (&lines[i]) TinySetV_small<Ts...>(source.lines[i], ts_data);
     });
+  }
+  SparseMatrixV(SparseMatrixV &&source)
+      : ts_data(source.ts_data), line_count(source.line_count),
+        line_width(source.line_width) {
+    source.line_count = 0;
+    lines = source.lines;
+    source.lines = nullptr;
+  }
+  SparseMatrixV &operator=(const SparseMatrixV &source) {
+    if (this != &source) {
+      if (line_count > 0) {
+        for (uint32_t i = 0; i < line_count; i++) {
+          lines[i].destroy(ts_data);
+        }
+        free(lines);
+      }
+      ts_data = source.ts_data;
+      line_count = source.line_count;
+      line_width = source.line_width;
+
+      lines = (TinySetV_small<Ts...> *)malloc(line_count *
+                                              sizeof(TinySetV_small<Ts...>));
+      ParallelTools::parallel_for(0, line_count, [&](el_t i) {
+        new (&lines[i]) TinySetV_small<Ts...>(source.lines[i], ts_data);
+      });
+    }
+    return *this;
+  }
+  SparseMatrixV &operator=(SparseMatrixV &&source) {
+    if (this != &source) {
+      if (line_count > 0) {
+        for (uint32_t i = 0; i < line_count; i++) {
+          lines[i].destroy(ts_data);
+        }
+        free(lines);
+      }
+      ts_data = source.ts_data;
+      line_count = source.line_count;
+      source.line_count = 0;
+
+      lines = source.lines;
+      source.lines = nullptr;
+    }
+    return *this;
   }
   ~SparseMatrixV() {
     for (uint32_t i = 0; i < line_count; i++) {
@@ -104,6 +162,7 @@ public:
   [[nodiscard]] bool has(el_t row, el_t col) const;
   value_type value(el_t row, el_t col) const;
   void insert(element_type e);
+  void insert(el_t row, el_t col, auto... vals) { insert({row, col, vals...}); }
   void remove(el_t row, el_t col);
   void insert_batch(element_type *edges, uint64_t n);
   void remove_batch(std::tuple<el_t, el_t> *edges, uint64_t n);
@@ -117,7 +176,7 @@ public:
     lines[i].template map<no_early_exit, Is...>(f, ts_data, parallel);
   }
 
-  template <class F, size_t... Is>
+  template <bool no_early_exit, class F, size_t... Is>
   void map_neighbors_impl(
       uint64_t i, F &f, [[maybe_unused]] void *d, bool parallel,
       [[maybe_unused]] std::integer_sequence<size_t, Is...> int_seq) const {
@@ -142,14 +201,14 @@ public:
     }
 
     if constexpr (keys_only) {
-      lines[i].template map<F::no_early_exit>([&](el_t el) { return f(i, el); },
-                                              ts_data, parallel);
+      lines[i].template map<no_early_exit>([&](el_t el) { return f(i, el); },
+                                           ts_data, parallel);
     } else {
       if constexpr (binary) {
-        lines[i].template map<F::no_early_exit>(
+        lines[i].template map<no_early_exit>(
             [&](el_t el) { return f(i, el, (Is >= 0)...); }, ts_data, parallel);
       } else {
-        lines[i].template map<F::no_early_exit, Is...>(
+        lines[i].template map<no_early_exit, Is...>(
             [&](el_t el, auto... args) { return f(i, el, args...); }, ts_data,
             parallel);
       }
@@ -161,10 +220,10 @@ public:
                      bool parallel) const {
 
     if constexpr (sizeof...(Is) > 0) {
-      map_neighbors_impl<Is...>(i, f, d, parallel, {});
+      map_neighbors_impl<F::no_early_exit, Is...>(i, f, d, parallel, {});
     } else {
-      map_neighbors_impl(i, f, d, parallel,
-                         std::make_index_sequence<sizeof...(Ts)>{});
+      map_neighbors_impl<F::no_early_exit>(
+          i, f, d, parallel, std::make_index_sequence<sizeof...(Ts)>{});
     }
   }
 
@@ -671,28 +730,6 @@ SparseMatrixV<is_csr_, Ts...> SparseMatrixV<is_csr_, Ts...>::rewrite_graph(
         ts_data, false);
   });
   return new_matrix;
-}
-
-template <bool is_csr_, typename... Ts>
-SparseMatrixV<is_csr_, Ts...>::SparseMatrixV(el_t height, el_t width) {
-  ts_data.thresh_24 = 2;
-  ts_data.thresh_16 = 4;
-  ts_data.thresh_8 = 8;
-  if constexpr (is_csr()) {
-    ts_data.max_el = width;
-    line_count = height;
-    line_width = width;
-  } else {
-    ts_data.max_el = height;
-    line_count = width;
-    line_width = height;
-  }
-  lines = (TinySetV_small<Ts...> *)malloc(line_count *
-                                          sizeof(TinySetV_small<Ts...>));
-  ts_data = lines[0].get_thresholds(ts_data.max_el);
-  for (el_t i = 0; i < line_count; i++) {
-    new (&lines[i]) TinySetV_small<Ts...>();
-  }
 }
 
 } // namespace SSTGraph

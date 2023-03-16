@@ -172,7 +172,7 @@ void make_ER_graph(uint32_t nodes, double p, bool symetrize,
     std::mt19937 gen(i);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     for (uint32_t j = 0; j < nodes; j++) {
-      if (dis(gen) <= p) {
+      if (dis(gen) <= p && i != j) {
         g.insert({i, j});
       }
     }
