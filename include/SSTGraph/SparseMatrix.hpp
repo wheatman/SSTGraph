@@ -172,13 +172,13 @@ public:
   SparseMatrixV rewrite_graph(std::vector<uint64_t> new_label_map) const;
 
   template <bool no_early_exit, size_t... Is, class F>
-  void map_line(F f, uint64_t i, bool parallel) const {
+  void map_line(F &&f, uint64_t i, bool parallel) const {
     lines[i].template map<no_early_exit, Is...>(f, ts_data, parallel);
   }
 
   template <bool no_early_exit, class F, size_t... Is>
   void map_neighbors_impl(
-      uint64_t i, F &f, [[maybe_unused]] void *d, bool parallel,
+      uint64_t i, F &&f, [[maybe_unused]] void *d, bool parallel,
       [[maybe_unused]] std::integer_sequence<size_t, Is...> int_seq) const {
 
     constexpr bool keys_only = sizeof...(Is) == 0;
@@ -216,7 +216,7 @@ public:
   }
 
   template <class F, size_t... Is>
-  void map_neighbors(uint64_t i, F &f, [[maybe_unused]] void *d,
+  void map_neighbors(uint64_t i, F &&f, [[maybe_unused]] void *d,
                      bool parallel) const {
 
     if constexpr (sizeof...(Is) > 0) {
@@ -228,8 +228,32 @@ public:
   }
 
   template <class F, size_t... Is>
+  void map_neighbors_early_exit(uint64_t i, F &&f, [[maybe_unused]] void *d,
+                                bool parallel) const {
+
+    if constexpr (sizeof...(Is) > 0) {
+      map_neighbors_impl<false, Is...>(i, f, d, parallel, {});
+    } else {
+      map_neighbors_impl<false>(i, f, d, parallel,
+                                std::make_index_sequence<sizeof...(Ts)>{});
+    }
+  }
+
+  template <class F, size_t... Is>
+  void map_neighbors_no_early_exit(uint64_t i, F &&f, [[maybe_unused]] void *d,
+                                   bool parallel) const {
+
+    if constexpr (sizeof...(Is) > 0) {
+      map_neighbors_impl<true, Is...>(i, f, d, parallel, {});
+    } else {
+      map_neighbors_impl<true>(i, f, d, parallel,
+                               std::make_index_sequence<sizeof...(Ts)>{});
+    }
+  }
+
+  template <class F, size_t... Is>
   void map_range_impl(
-      F &f, uint64_t start_node, uint64_t end_node, [[maybe_unused]] void *d,
+      F &&f, uint64_t start_node, uint64_t end_node, [[maybe_unused]] void *d,
       [[maybe_unused]] std::integer_sequence<size_t, Is...> int_seq) const {
     constexpr bool keys_only = sizeof...(Is) == 0;
     if constexpr (keys_only) {
@@ -279,7 +303,7 @@ public:
   }
 
   template <class F, size_t... Is>
-  void map_range(F &f, uint64_t start_node, uint64_t end_node,
+  void map_range(F &&f, uint64_t start_node, uint64_t end_node,
                  [[maybe_unused]] void *d) const {
     if constexpr (sizeof...(Is) > 0) {
       map_range_impl<Is...>(f, start_node, end_node, d, {});

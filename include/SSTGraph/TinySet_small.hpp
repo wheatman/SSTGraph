@@ -22,7 +22,7 @@ struct extra_data {
   uint32_t max_el = 0;
 };
 
-[[nodiscard]] uint32_t calc_pma_count(uint64_t max_el, uint32_t b);
+[[nodiscard]] inline uint32_t calc_pma_count(uint64_t max_el, uint32_t b);
 
 } // namespace TimeSet_small_helpers
 
@@ -122,7 +122,7 @@ private:
                               uint32_t early_end_B) const;
 
   template <bool no_early_exit, typename p, size_t... Is, class F>
-  void map_set_type(F f, const extra_data &d, bool parallel) const;
+  void map_set_type(F &&f, const extra_data &d, bool parallel) const;
 
   template <int bytes> void print_pmas_internal(const extra_data &d) const;
 
@@ -185,12 +185,13 @@ public:
   void print_pmas(const extra_data &d) const;
 
   template <bool no_early_exit, size_t... Is, class F>
-  void map(F f, const extra_data &d, bool parallel = false) const;
+  void map(F &&f, const extra_data &d, bool parallel = false) const;
 };
 
 namespace TimeSet_small_helpers {
 
-uint8_t find_b_for_el_count(uint32_t element_count, const extra_data &d) {
+inline uint8_t find_b_for_el_count(uint32_t element_count,
+                                   const extra_data &d) {
   if (element_count < d.thresh_24) {
     return 4;
   } else if (element_count < d.thresh_16) {
@@ -201,8 +202,7 @@ uint8_t find_b_for_el_count(uint32_t element_count, const extra_data &d) {
     return 1;
   }
 }
-
-uint32_t calc_pma_count(uint64_t max_el, uint32_t b) {
+inline uint32_t calc_pma_count(uint64_t max_el, uint32_t b) {
   uint64_t n = max_el;
   uint64_t pma_count = std::max(1UL, n >> (b * 8));
   if ((pma_count << (b * 8)) < n) {
@@ -283,7 +283,7 @@ uint32_t TinySetV_small<Ts...>::find_best_b_for_given_element_count(
 
 template <typename... Ts>
 template <bool no_early_exit, typename p, size_t... Is, class F>
-void TinySetV_small<Ts...>::map_set_type(F f, const extra_data &d,
+void TinySetV_small<Ts...>::map_set_type(F &&f, const extra_data &d,
                                          bool parallel) const {
   uint32_t iters = get_pma_count(d);
   const p *ps = reinterpret_cast<const p *>((iters == 1) ? &pmas.d[0] : pmas.p);
@@ -323,7 +323,8 @@ void TinySetV_small<Ts...>::map_set_type(F f, const extra_data &d,
 
 template <typename... Ts>
 template <bool no_early_exit, size_t... Is, class F>
-void TinySetV_small<Ts...>::map(F f, const extra_data &d, bool parallel) const {
+void TinySetV_small<Ts...>::map(F &&f, const extra_data &d,
+                                bool parallel) const {
   switch (pmas.get_b()) {
   case 1:
     return map_set_type<no_early_exit, PMA<sized_uint<1>, Ts...>, Is...>(

@@ -83,7 +83,7 @@ static inline uint32_t bsr_word(uint32_t word) {
   return result;
 }
 #ifdef __AVX2__
-uint32_t hsum_epi32_avx(__m128i x) {
+inline uint32_t hsum_epi32_avx(__m128i x) {
   __m128i hi64 =
       _mm_unpackhi_epi64(x, x); // 3-operand non-destructive AVX lets us save a
                                 // byte without needing a movdqa
@@ -93,21 +93,21 @@ uint32_t hsum_epi32_avx(__m128i x) {
   __m128i sum32 = _mm_add_epi32(sum64, hi32);
   return _mm_cvtsi128_si32(sum32); // movd
 }
-uint32_t hsum_8x32(__m256i v) {
+inline uint32_t hsum_8x32(__m256i v) {
   __m128i sum128 = _mm_add_epi32(
       _mm256_castsi256_si128(v),
       _mm256_extracti128_si256(v, 1)); // silly GCC uses a longer AXV512VL
                                        // instruction if AVX512 is enabled :/
   return hsum_epi32_avx(sum128);
 }
-uint32_t hsum_16x16(__m256i v) {
+inline uint32_t hsum_16x16(__m256i v) {
   __m256i sum8 = _mm256_hadd_epi16(v, v);
   __m256i sum4 = _mm256_hadd_epi16(sum8, sum8);
   __m256i sum2 = _mm256_hadd_epi16(sum4, sum4);
   __m256i sum = _mm256_hadd_epi16(sum2, sum2);
   return _mm256_extract_epi16(sum, 0);
 }
-float sum8(__m256 x) {
+inline float sum8(__m256 x) {
   // hiQuad = ( x7, x6, x5, x4 )
   const __m128 hiQuad = _mm256_extractf128_ps(x, 1);
   // loQuad = ( x3, x2, x1, x0 )
@@ -216,7 +216,7 @@ template <class T> inline void Log(const __m256 &value) {
 }
 #endif
 
-static constexpr uint32_t bsr_word_constexpr(uint32_t word) {
+inline static constexpr uint32_t bsr_word_constexpr(uint32_t word) {
   if (word == 0) {
     return 0;
   }
@@ -227,14 +227,16 @@ static constexpr uint32_t bsr_word_constexpr(uint32_t word) {
   }
 }
 
-int isPowerOfTwo(uint32_t x) { return ((x != 0U) && !(x & (x - 1U))); }
+inline int isPowerOfTwo(uint32_t x) { return ((x != 0U) && !(x & (x - 1U))); }
 
 // same as find_leaf, but does it for any level in the tree
 // index: index in array
 // len: length of sub-level.
-uint32_t find_node(uint32_t index, uint32_t len) { return (index / len) * len; }
+inline uint32_t find_node(uint32_t index, uint32_t len) {
+  return (index / len) * len;
+}
 
-uint64_t get_usecs() {
+inline uint64_t get_usecs() {
   struct timeval st {};
   gettimeofday(&st, nullptr);
   return st.tv_sec * 1000000 + st.tv_usec;
@@ -276,7 +278,7 @@ inline bool isSpace(char c) {
   }
 }
 // parallel code for converting a string to words
-words stringToWords(char *Str, uint64_t n) {
+inline words stringToWords(char *Str, uint64_t n) {
   ParallelTools::parallel_for(0, n, [&](size_t i) {
     if (isSpace(Str[i])) {
       Str[i] = 0;
@@ -358,7 +360,7 @@ words stringToWords(char *Str, uint64_t n) {
   free(offsets);
   return words(Str, n, SA, m);
 }
-char *readStringFromFile(const char *fileName, int64_t *length) {
+inline char *readStringFromFile(const char *fileName, int64_t *length) {
   std::ifstream file(fileName, std::ios::in | std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     std::cout << "Unable to open file: " << fileName << std::endl;
@@ -654,9 +656,9 @@ get_edges_from_file(const std::string &filename, uint64_t *edge_count,
   return nullptr;
 }
 
-bool approximatelyEqual(double a, double b,
-                        double epsilon = std::numeric_limits<float>::epsilon() *
-                                         100) {
+inline bool approximatelyEqual(
+    double a, double b,
+    double epsilon = std::numeric_limits<float>::epsilon() * 100) {
   // if they are both ing or nan ignore and don't bother checking
   if (!std::isfinite(a) && !std::isfinite(b)) {
     return true;

@@ -324,7 +324,7 @@ public:
   [[nodiscard]] bool use_fast_iter() const { return stored_dense(); }
 
   template <bool no_early_exit, size_t... Is, class F>
-  bool map(F f, uint64_t prefix = 0) const;
+  bool map(F &&f, uint64_t prefix = 0) const;
 
   template <bool dense = false> class iterator {
 
@@ -398,7 +398,7 @@ uint64_t PMA<key_type, Ts...>::sum_keys() const {
 
 template <typename key_type, typename... Ts>
 template <bool no_early_exit, size_t... Is, class F>
-bool PMA<key_type, Ts...>::map(F f, uint64_t prefix) const {
+bool PMA<key_type, Ts...>::map(F &&f, uint64_t prefix) const {
 
   static_assert(std::is_invocable_v<F, uint32_t, NthType<Is>...>,
                 "update function must match given types");
