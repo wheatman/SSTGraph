@@ -216,13 +216,14 @@ public:
   }
 
   template <class F, size_t... Is>
-  void map_neighbors(uint64_t i, F &&f, [[maybe_unused]] void *d,
+  void map_neighbors(uint64_t i, F &f, [[maybe_unused]] void *d,
                      bool parallel) const {
 
     if constexpr (sizeof...(Is) > 0) {
-      map_neighbors_impl<F::no_early_exit, Is...>(i, f, d, parallel, {});
+      map_neighbors_impl<std::remove_reference_t<F>::no_early_exit, Is...>(
+          i, f, d, parallel, {});
     } else {
-      map_neighbors_impl<F::no_early_exit>(
+      map_neighbors_impl<std::remove_reference_t<F>::no_early_exit>(
           i, f, d, parallel, std::make_index_sequence<sizeof...(Ts)>{});
     }
   }
@@ -273,29 +274,29 @@ public:
     for (uint64_t i = start_node; i < end_node - 1; i++) {
       lines[i + 1].prefetch_data(ts_data);
       if constexpr (keys_only) {
-        lines[i].template map<F::no_early_exit>(
-            [&](el_t el) { return f(i, el); }, ts_data, false);
+        lines[i].template map<true>([&](el_t el) { return f(i, el); }, ts_data,
+                                    false);
       } else {
         if constexpr (binary) {
-          lines[i].template map<F::no_early_exit>(
+          lines[i].template map<true>(
               [&](el_t el) { return f(i, el, (Is >= 0)...); }, ts_data, false);
         } else {
-          lines[i].template map<F::no_early_exit, Is...>(
+          lines[i].template map<true, Is...>(
               [&](el_t el, auto... args) { return f(i, el, args...); }, ts_data,
               false);
         }
       }
     }
     if constexpr (keys_only) {
-      lines[end_node - 1].template map<F::no_early_exit>(
+      lines[end_node - 1].template map<true>(
           [&](el_t el) { return f(end_node - 1, el); }, ts_data, false);
     } else {
       if constexpr (binary) {
-        lines[end_node - 1].template map<F::no_early_exit>(
+        lines[end_node - 1].template map<true>(
             [&](el_t el) { return f(end_node - 1, el, (Is >= 0)...); }, ts_data,
             false);
       } else {
-        lines[end_node - 1].template map<F::no_early_exit, Is...>(
+        lines[end_node - 1].template map<true, Is...>(
             [&](el_t el, auto... args) { return f(end_node - 1, el, args...); },
             ts_data, false);
       }
@@ -303,7 +304,7 @@ public:
   }
 
   template <class F, size_t... Is>
-  void map_range(F &&f, uint64_t start_node, uint64_t end_node,
+  void map_range(F &f, uint64_t start_node, uint64_t end_node,
                  [[maybe_unused]] void *d) const {
     if constexpr (sizeof...(Is) > 0) {
       map_range_impl<Is...>(f, start_node, end_node, d, {});

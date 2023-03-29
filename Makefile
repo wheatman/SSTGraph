@@ -32,7 +32,7 @@ endif
 
 
 ifeq ($(SANITIZE),1)
-ifeq ($(OPENMP),1)
+ifeq ($(PARLAY),1)
 CFLAGS += -fsanitize=undefined,thread -fno-omit-frame-pointer
 else
 ifeq ($(CILK),1)
