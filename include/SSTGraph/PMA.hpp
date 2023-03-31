@@ -415,12 +415,24 @@ bool PMA<key_type, Ts...>::map(F &&f, uint64_t prefix) const {
     }
 
     for (uint32_t i = 0; i < count_elements; i++) {
-      auto element = SOA_type::template get_static<0, (Is + 1)...>(data, n, i);
-      if constexpr (no_early_exit) {
-        std::apply(f_add_prefix, element);
+      if constexpr (sizeof...(Is) == 0) {
+        key_type element = SOA_type::get_element_static(data, n, i);
+        if constexpr (no_early_exit) {
+          f(element + prefix);
+        } else {
+          if (f(element + prefix)) {
+            return true;
+          }
+        }
       } else {
-        if (std::apply(f_add_prefix, element)) {
-          return true;
+        auto element =
+            SOA_type::template get_static<0, (Is + 1)...>(data, n, i);
+        if constexpr (no_early_exit) {
+          std::apply(f_add_prefix, element);
+        } else {
+          if (std::apply(f_add_prefix, element)) {
+            return true;
+          }
         }
       }
     }
