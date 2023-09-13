@@ -160,6 +160,17 @@ public:
   // NOTE make sure you call destroy
   ~TinySetV_small() = default;
   TinySetV_small(const TinySetV_small &source, const extra_data &d);
+  TinySetV_small(TinySetV_small &&other) {
+    std::memcpy(this, &other, sizeof(TinySetV_small));
+    std::memset(&other, 0, sizeof(TinySetV_small));
+  }
+
+  TinySetV_small & operator=(TinySetV_small &&other) {
+    std::memcpy(this, &other, sizeof(TinySetV_small));
+    std::memset(&other, 0, sizeof(TinySetV_small));
+    return *this;
+  }
+
   void destroy(const extra_data &d);
   [[nodiscard]] bool has(el_t e, const extra_data &d) const;
   value_type value(el_t e, const extra_data &d) const;

@@ -39,6 +39,13 @@ cc_library(
     ],
 )
 cc_library(
+    name = "TinySet",
+    hdrs = ["TinySet.hpp"],
+    deps = [
+        "TinySet_small",
+    ],
+)
+cc_library(
     name = "SparseMatrix",
     hdrs = ["SparseMatrix.hpp"],
     deps = [
