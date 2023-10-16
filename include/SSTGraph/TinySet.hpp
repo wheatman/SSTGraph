@@ -34,7 +34,8 @@ public:
   TinySetV &operator=(TinySetV&& other) {
     if (this != &other) {
       d = other.d;
-      ts = other.ts;
+      ts = std::move(other.ts);
+      other.ts = TinySetV_small<Ts...>();
     }
     return *this;
   }
