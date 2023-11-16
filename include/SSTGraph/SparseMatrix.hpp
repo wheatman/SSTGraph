@@ -164,8 +164,8 @@ public:
   void insert(element_type e);
   void insert(el_t row, el_t col, auto... vals) { insert({row, col, vals...}); }
   void remove(el_t row, el_t col);
-  void insert_batch(element_type *edges, uint64_t n);
-  void remove_batch(std::tuple<el_t, el_t> *edges, uint64_t n);
+  void insert_batch(element_type *edges, uint64_t n, bool semi_sorted = false);
+  void remove_batch(std::tuple<el_t, el_t> *edges, uint64_t n, bool semi_sorted = false);
 
   std::vector<uint64_t> degree_order_map() const;
 
@@ -555,7 +555,7 @@ SparseMatrixV<is_csr_, Ts...>::remove(el_t row, el_t col) {
 
 template <bool is_csr_, typename... Ts>
 void __attribute__((noinline))
-SparseMatrixV<is_csr_, Ts...>::insert_batch(element_type *edges, uint64_t n) {
+SparseMatrixV<is_csr_, Ts...>::insert_batch(element_type *edges, uint64_t n, bool semi_sorted) {
   uint64_t n_workers = ParallelTools::getWorkers();
   uint64_t p = std::min(std::max(1UL, n / 100), n_workers);
   std::vector<uint64_t> indxs(p + 1);
@@ -574,7 +574,9 @@ SparseMatrixV<is_csr_, Ts...>::insert_batch(element_type *edges, uint64_t n) {
       }
       return;
     }
-    sort_batch(edges, n, [](const element_type &e) { return std::get<0>(e); });
+    if (!semi_sorted) {
+      sort_batch(edges, n, [](const element_type &e) { return std::get<0>(e); });
+    }
 
     // printf("done sorting\n");
     for (uint64_t i = 1; i < p; i++) {
@@ -616,7 +618,9 @@ SparseMatrixV<is_csr_, Ts...>::insert_batch(element_type *edges, uint64_t n) {
       }
       return;
     }
-    sort_batch(edges, n, [](const element_type &e) { return std::get<1>(e); });
+    if (!semi_sorted) {
+      sort_batch(edges, n, [](const element_type &e) { return std::get<1>(e); });
+    }
     for (uint64_t i = 1; i < p; i++) {
       uint64_t start = (i * n) / p;
       el_t start_val = std::get<1>(edges[start]);
@@ -641,7 +645,7 @@ SparseMatrixV<is_csr_, Ts...>::insert_batch(element_type *edges, uint64_t n) {
 template <bool is_csr_, typename... Ts>
 void __attribute__((noinline))
 SparseMatrixV<is_csr_, Ts...>::remove_batch(std::tuple<el_t, el_t> *edges,
-                                            uint64_t n) {
+                                            uint64_t n, bool semi_sorted) {
   uint64_t n_workers = ParallelTools::getWorkers();
   uint64_t p = std::min(std::max(1UL, n / 100), n_workers);
   std::vector<uint64_t> indxs(p + 1);
@@ -656,7 +660,9 @@ SparseMatrixV<is_csr_, Ts...>::remove_batch(std::tuple<el_t, el_t> *edges,
       }
       return;
     }
-    sort_batch(edges, n, [](const element_type &e) { return std::get<0>(e); });
+    if (!semi_sorted) {
+      sort_batch(edges, n, [](const element_type &e) { return std::get<0>(e); });
+    }
     // printf("done sorting\n");
     for (uint64_t i = 1; i < p; i++) {
       uint64_t start = (i * n) / p;
@@ -687,7 +693,9 @@ SparseMatrixV<is_csr_, Ts...>::remove_batch(std::tuple<el_t, el_t> *edges,
       }
       return;
     }
-    sort_batch(edges, n, [](const element_type &e) { return std::get<1>(e); });
+    if (!semi_sorted) {
+      sort_batch(edges, n, [](const element_type &e) { return std::get<1>(e); });
+    }
     for (uint64_t i = 1; i < p; i++) {
       uint64_t start = (i * n) / p;
       el_t start_val = std::get<1>(edges[start]);
