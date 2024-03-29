@@ -447,7 +447,7 @@ bool real_graph(const std::string &filename, [[maybe_unused]] bool symetric,
       // fprintf(stderr, "num_edges added = %lu\n", i + local_batch_size);
     }
   }
-  g.insert_batch(edges + i, num_edges % local_batch_size);
+  g.insert_batch(edges + i, num_edges  - i);
 
   end = get_usecs();
   // g.insert_batch(edges, num_edges);
